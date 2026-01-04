@@ -6,24 +6,49 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.gatekey.client.data.repository.GatewayRepository
 import com.gatekey.client.data.repository.Result
+import com.gatekey.client.data.repository.SettingsRepository
 import com.gatekey.client.vpn.VpnManager
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+
+data class TrafficDataPoint(
+    val bytesIn: Long,
+    val bytesOut: Long,
+    val timestamp: Long = System.currentTimeMillis()
+)
 
 @HiltViewModel
 class ConnectionViewModel @Inject constructor(
     private val gatewayRepository: GatewayRepository,
-    private val vpnManager: VpnManager
+    private val vpnManager: VpnManager,
+    settingsRepository: SettingsRepository
 ) : ViewModel() {
 
     val gateways = gatewayRepository.gateways
     val meshHubs = gatewayRepository.meshHubs
     val activeConnections = vpnManager.activeConnections
     val vpnState = vpnManager.vpnState
+
+    // Server URL from settings
+    val serverUrl = settingsRepository.settings.map { it.serverUrl }
+
+    // VPN connection info
+    val localIp = vpnManager.localIp
+    val remoteIp = vpnManager.remoteIp
+    val remotePort = vpnManager.remotePort
+    val bytesIn = vpnManager.bytesIn
+    val bytesOut = vpnManager.bytesOut
+
+    // Traffic history for graph (last 30 data points)
+    private val _trafficHistory = MutableStateFlow<List<TrafficDataPoint>>(emptyList())
+    val trafficHistory: StateFlow<List<TrafficDataPoint>> = _trafficHistory.asStateFlow()
 
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
@@ -45,6 +70,34 @@ class ConnectionViewModel @Inject constructor(
 
     init {
         refreshData()
+        startTrafficTracking()
+    }
+
+    private fun startTrafficTracking() {
+        viewModelScope.launch {
+            while (isActive) {
+                val currentVpnState = vpnState.value
+                if (currentVpnState is VpnManager.VpnState.Connected) {
+                    val dataPoint = TrafficDataPoint(
+                        bytesIn = bytesIn.value,
+                        bytesOut = bytesOut.value
+                    )
+                    val currentHistory = _trafficHistory.value.toMutableList()
+                    currentHistory.add(dataPoint)
+                    // Keep last 30 data points
+                    if (currentHistory.size > 30) {
+                        currentHistory.removeAt(0)
+                    }
+                    _trafficHistory.value = currentHistory
+                } else {
+                    // Clear history when disconnected
+                    if (_trafficHistory.value.isNotEmpty()) {
+                        _trafficHistory.value = emptyList()
+                    }
+                }
+                delay(1000) // Sample every second
+            }
+        }
     }
 
     fun refreshData() {

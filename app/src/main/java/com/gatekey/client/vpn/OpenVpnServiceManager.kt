@@ -63,6 +63,15 @@ class OpenVpnServiceManager @Inject constructor(
     private val _bytesOut = MutableStateFlow(0L)
     val bytesOut: StateFlow<Long> = _bytesOut.asStateFlow()
 
+    private val _localIp = MutableStateFlow<String?>(null)
+    val localIp: StateFlow<String?> = _localIp.asStateFlow()
+
+    private val _remoteIp = MutableStateFlow<String?>(null)
+    val remoteIp: StateFlow<String?> = _remoteIp.asStateFlow()
+
+    private val _remotePort = MutableStateFlow<String?>(null)
+    val remotePort: StateFlow<String?> = _remotePort.asStateFlow()
+
     init {
         // Initialize StatusListener for IPC with the :openvpn process
         // This binds to OpenVPNStatusService which receives state updates via AIDL
@@ -246,6 +255,21 @@ class OpenVpnServiceManager @Inject constructor(
             ConnectionStatus.LEVEL_AUTH_FAILED,
             ConnectionStatus.LEVEL_VPNPAUSED -> ConnectionState.DISCONNECTED
             else -> _connectionState.value
+        }
+
+        // Parse IP addresses from message (format: "status,localIP,remoteIP,port,...")
+        if (level == ConnectionStatus.LEVEL_CONNECTED && !logmessage.isNullOrEmpty()) {
+            val parts = logmessage.split(",")
+            if (parts.size >= 4) {
+                _localIp.value = parts.getOrNull(1)?.takeIf { it.isNotEmpty() }
+                _remoteIp.value = parts.getOrNull(2)?.takeIf { it.isNotEmpty() }
+                _remotePort.value = parts.getOrNull(3)?.takeIf { it.isNotEmpty() }
+            }
+        } else if (newState == ConnectionState.DISCONNECTED) {
+            // Clear IP info on disconnect
+            _localIp.value = null
+            _remoteIp.value = null
+            _remotePort.value = null
         }
 
         _connectionState.value = newState
