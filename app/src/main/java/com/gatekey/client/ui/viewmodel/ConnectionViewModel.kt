@@ -28,7 +28,7 @@ data class TrafficDataPoint(
 class ConnectionViewModel @Inject constructor(
     private val gatewayRepository: GatewayRepository,
     private val vpnManager: VpnManager,
-    settingsRepository: SettingsRepository
+    private val settingsRepository: SettingsRepository
 ) : ViewModel() {
 
     val gateways = gatewayRepository.gateways
@@ -38,6 +38,15 @@ class ConnectionViewModel @Inject constructor(
 
     // Server URL from settings
     val serverUrl = settingsRepository.settings.map { it.serverUrl }
+
+    // Dark mode setting
+    val darkMode = settingsRepository.settings.map { it.darkMode }
+
+    fun setDarkMode(enabled: Boolean) {
+        viewModelScope.launch {
+            settingsRepository.updateDarkMode(enabled)
+        }
+    }
 
     // VPN connection info
     val localIp = vpnManager.localIp

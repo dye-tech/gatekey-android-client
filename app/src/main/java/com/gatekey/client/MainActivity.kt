@@ -8,13 +8,20 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import com.gatekey.client.data.repository.SettingsRepository
 import com.gatekey.client.ui.GatekeyApp
 import com.gatekey.client.ui.theme.GatekeyTheme
 import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+
+    @Inject
+    lateinit var settingsRepository: SettingsRepository
 
     // Track if we just opened the browser for SSO
     private var ssoInProgress = false
@@ -26,7 +33,10 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
 
         setContent {
-            GatekeyTheme {
+            val settings by settingsRepository.settings.collectAsState(initial = null)
+            val darkMode = settings?.darkMode ?: false
+
+            GatekeyTheme(darkTheme = darkMode) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background

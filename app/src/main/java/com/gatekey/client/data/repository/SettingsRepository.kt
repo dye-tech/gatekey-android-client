@@ -28,6 +28,7 @@ class SettingsRepository @Inject constructor(
         val SHOW_NOTIFICATIONS = booleanPreferencesKey("show_notifications")
         val KEEP_ALIVE = booleanPreferencesKey("keep_alive")
         val LOG_LEVEL = stringPreferencesKey("log_level")
+        val DARK_MODE = booleanPreferencesKey("dark_mode")
     }
 
     val settings: Flow<AppSettings> = context.settingsDataStore.data.map { prefs ->
@@ -41,7 +42,8 @@ class SettingsRepository @Inject constructor(
                 LogLevel.valueOf(prefs[Keys.LOG_LEVEL] ?: "INFO")
             } catch (e: Exception) {
                 LogLevel.INFO
-            }
+            },
+            darkMode = prefs[Keys.DARK_MODE] ?: false
         )
     }
 
@@ -77,6 +79,12 @@ class SettingsRepository @Inject constructor(
     suspend fun updateLogLevel(level: LogLevel) {
         context.settingsDataStore.edit { prefs ->
             prefs[Keys.LOG_LEVEL] = level.name
+        }
+    }
+
+    suspend fun updateDarkMode(enabled: Boolean) {
+        context.settingsDataStore.edit { prefs ->
+            prefs[Keys.DARK_MODE] = enabled
         }
     }
 
