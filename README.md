@@ -198,6 +198,54 @@ The release APK includes native libraries for all architectures. To create small
 # Creates: app-arm64-v8a-release.apk, app-armeabi-v7a-release.apk, etc.
 ```
 
+## GitHub Actions
+
+The project includes CI/CD workflows for automated builds and releases.
+
+### Workflows
+
+| Workflow | Trigger | Description |
+|----------|---------|-------------|
+| `ci.yml` | Push to main/develop, PRs | Build, test, and lint |
+| `release.yml` | Tag push (v*) | Build signed APKs and create GitHub Release |
+
+### Creating a Release
+
+1. Update `versionCode` and `versionName` in `app/build.gradle.kts`
+2. Commit and push changes
+3. Create and push a tag:
+   ```bash
+   git tag v1.0.4
+   git push origin v1.0.4
+   ```
+4. GitHub Actions will build and create a release with:
+   - `gatekey-android-<version>-release.apk` (signed)
+   - `gatekey-android-<version>-debug.apk`
+   - `checksums.txt`
+
+### Required Secrets
+
+For signed release builds, configure these repository secrets:
+
+| Secret | Description |
+|--------|-------------|
+| `KEYSTORE_BASE64` | Base64-encoded release keystore file |
+| `KEYSTORE_PASSWORD` | Keystore password |
+| `KEY_ALIAS` | Key alias in keystore (default: `gatekey`) |
+
+To encode your keystore:
+```bash
+base64 -w 0 gatekey-release.keystore
+# Copy output to KEYSTORE_BASE64 secret
+```
+
+### Local Release Build
+
+To build a signed release locally:
+```bash
+KEYSTORE_PASSWORD="your-password" ./gradlew assembleRelease
+```
+
 ## Testing
 
 ### Run Unit Tests
