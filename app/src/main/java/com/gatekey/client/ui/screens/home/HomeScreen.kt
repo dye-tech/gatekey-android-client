@@ -52,6 +52,7 @@ fun HomeScreen(
     val bytesIn by connectionViewModel.bytesIn.collectAsState()
     val bytesOut by connectionViewModel.bytesOut.collectAsState()
     val trafficHistory by connectionViewModel.trafficHistory.collectAsState()
+    val darkMode by connectionViewModel.darkMode.collectAsState(initial = false)
 
     val context = LocalContext.current
     val activity = context as? android.app.Activity
@@ -69,6 +70,12 @@ fun HomeScreen(
             TopAppBar(
                 title = { Text("Gatekey") },
                 actions = {
+                    IconButton(onClick = { connectionViewModel.setDarkMode(!darkMode) }) {
+                        Icon(
+                            imageVector = if (darkMode) Icons.Default.LightMode else Icons.Default.DarkMode,
+                            contentDescription = if (darkMode) "Switch to light mode" else "Switch to dark mode"
+                        )
+                    }
                     IconButton(onClick = { connectionViewModel.refreshData() }) {
                         Icon(Icons.Default.Refresh, contentDescription = "Refresh")
                     }

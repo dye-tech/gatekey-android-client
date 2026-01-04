@@ -9,7 +9,8 @@ data class AppSettings(
     val autoConnectGatewayId: String? = null,
     val showNotifications: Boolean = true,
     val keepAlive: Boolean = true,
-    val logLevel: LogLevel = LogLevel.INFO
+    val logLevel: LogLevel = LogLevel.INFO,
+    val darkMode: Boolean = false
 )
 
 enum class LogLevel {
