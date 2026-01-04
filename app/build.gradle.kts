@@ -15,10 +15,11 @@ android {
 
     signingConfigs {
         create("release") {
-            storeFile = file("../gatekey-release.keystore")
-            storePassword = "gatekey123"
-            keyAlias = "gatekey"
-            keyPassword = "gatekey123"
+            val keystorePath = System.getenv("KEYSTORE_FILE") ?: "../gatekey-release.keystore"
+            storeFile = file(keystorePath)
+            storePassword = System.getenv("KEYSTORE_PASSWORD") ?: ""
+            keyAlias = System.getenv("KEY_ALIAS") ?: "gatekey"
+            keyPassword = System.getenv("KEYSTORE_PASSWORD") ?: "" // PKCS12 uses same password
         }
     }
 
