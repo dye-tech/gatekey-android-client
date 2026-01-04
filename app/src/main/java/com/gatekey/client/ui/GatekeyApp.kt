@@ -23,7 +23,10 @@ import com.gatekey.client.ui.screens.connections.ConnectionsScreen
 import com.gatekey.client.ui.screens.home.HomeScreen
 import com.gatekey.client.ui.screens.login.LoginScreen
 import com.gatekey.client.ui.screens.settings.SettingsScreen
+import com.gatekey.client.ui.theme.GatekeyGreen
 import com.gatekey.client.ui.viewmodel.AuthViewModel
+import com.gatekey.client.ui.viewmodel.ConnectionViewModel
+import com.gatekey.client.vpn.VpnManager
 
 sealed class Screen(
     val route: String,
@@ -46,12 +49,15 @@ val bottomNavItems = listOf(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GatekeyApp(
-    authViewModel: AuthViewModel = hiltViewModel()
+    authViewModel: AuthViewModel = hiltViewModel(),
+    connectionViewModel: ConnectionViewModel = hiltViewModel()
 ) {
     val navController = rememberNavController()
     val authState by authViewModel.authState.collectAsState()
+    val vpnState by connectionViewModel.vpnState.collectAsState()
 
     val isLoggedIn = authState is com.gatekey.client.data.repository.AuthRepository.AuthState.LoggedIn
+    val isVpnConnected = vpnState is VpnManager.VpnState.Connected
 
     // Start destination based on auth state
     val startDestination = if (isLoggedIn) Screen.Home.route else Screen.Login.route
@@ -75,22 +81,49 @@ fun GatekeyApp(
     Scaffold(
         bottomBar = {
             if (isLoggedIn) {
-                NavigationBar {
+                NavigationBar(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    contentColor = MaterialTheme.colorScheme.primary
+                ) {
                     val navBackStackEntry by navController.currentBackStackEntryAsState()
                     val currentDestination = navBackStackEntry?.destination
 
                     bottomNavItems.forEach { screen ->
                         val selected = currentDestination?.hierarchy?.any { it.route == screen.route } == true
 
+                        // Special handling for Connections/Shield icon - green when VPN connected
+                        val iconTint = when {
+                            screen == Screen.Connections && isVpnConnected -> GatekeyGreen
+                            selected -> MaterialTheme.colorScheme.primary
+                            else -> MaterialTheme.colorScheme.onSurfaceVariant
+                        }
+
                         NavigationBarItem(
                             icon = {
                                 Icon(
-                                    if (selected) screen.selectedIcon else screen.unselectedIcon,
-                                    contentDescription = screen.title
+                                    imageVector = if (selected || (screen == Screen.Connections && isVpnConnected)) {
+                                        screen.selectedIcon
+                                    } else {
+                                        screen.unselectedIcon
+                                    },
+                                    contentDescription = screen.title,
+                                    tint = iconTint
                                 )
                             },
-                            label = { Text(screen.title) },
+                            label = {
+                                Text(
+                                    text = screen.title,
+                                    color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            },
                             selected = selected,
+                            colors = NavigationBarItemDefaults.colors(
+                                selectedIconColor = MaterialTheme.colorScheme.primary,
+                                selectedTextColor = MaterialTheme.colorScheme.primary,
+                                unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                indicatorColor = MaterialTheme.colorScheme.primaryContainer
+                            ),
                             onClick = {
                                 navController.navigate(screen.route) {
                                     popUpTo(navController.graph.findStartDestination().id) {

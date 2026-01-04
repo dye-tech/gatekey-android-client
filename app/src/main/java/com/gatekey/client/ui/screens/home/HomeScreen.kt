@@ -786,7 +786,7 @@ fun GatewayCard(
                     Text("Disconnect")
                 }
             } else {
-                FilledTonalButton(onClick = onConnect) {
+                Button(onClick = onConnect) {
                     Icon(
                         imageVector = Icons.Default.PlayArrow,
                         contentDescription = null,
@@ -914,7 +914,7 @@ fun MeshHubCard(
                     Text("Disconnect")
                 }
             } else {
-                FilledTonalButton(onClick = onConnect) {
+                Button(onClick = onConnect) {
                     Icon(
                         imageVector = Icons.Default.PlayArrow,
                         contentDescription = null,
