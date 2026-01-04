@@ -39,6 +39,13 @@ class VpnManager @Inject constructor(
     private val _activeConnections = MutableStateFlow<Map<String, ActiveConnection>>(emptyMap())
     val activeConnections: StateFlow<Map<String, ActiveConnection>> = _activeConnections.asStateFlow()
 
+    // Expose connection details from OpenVPN
+    val localIp: StateFlow<String?> = openVpnServiceManager.localIp
+    val remoteIp: StateFlow<String?> = openVpnServiceManager.remoteIp
+    val remotePort: StateFlow<String?> = openVpnServiceManager.remotePort
+    val bytesIn: StateFlow<Long> = openVpnServiceManager.bytesIn
+    val bytesOut: StateFlow<Long> = openVpnServiceManager.bytesOut
+
     // Track current connection info for state updates
     private var currentConnectionId: String? = null
     private var currentConnectionName: String? = null
