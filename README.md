@@ -94,6 +94,58 @@ adb install app/build/outputs/apk/debug/app-debug.apk
 ./gradlew installDebug
 ```
 
+### Local Development Deployment
+
+For rapid development and testing on a physical device:
+
+#### One-Command Build and Deploy
+```bash
+# Set JDK 17 and build+install in one step
+JAVA_HOME=/path/to/jdk17 ./gradlew installDebug
+```
+
+#### Common JDK 17 Paths
+```bash
+# Linux (Homebrew)
+export JAVA_HOME=/home/linuxbrew/.linuxbrew/Cellar/openjdk@17/17.0.17/libexec
+
+# macOS (Homebrew)
+export JAVA_HOME=/opt/homebrew/opt/openjdk@17/libexec
+
+# Ubuntu/Debian
+export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
+
+# Fedora/RHEL
+export JAVA_HOME=/usr/lib/jvm/java-17-openjdk
+```
+
+#### Reinstalling After Signature Change
+If you switch between debug and release builds, or rebuild with different signing keys:
+```bash
+# Uninstall existing app first
+adb uninstall com.gatekey.client
+
+# Then install new build
+adb install app/build/outputs/apk/debug/app-debug.apk
+```
+
+#### Viewing Logs
+```bash
+# View app logs in real-time
+adb logcat --pid=$(adb shell pidof -s com.gatekey.client)
+
+# Filter for GateKey-specific logs
+adb logcat | grep -i gatekey
+```
+
+#### Wireless ADB (optional)
+```bash
+# Connect device via USB first, then enable wireless
+adb tcpip 5555
+adb connect <device-ip>:5555
+# Now you can disconnect USB
+```
+
 ### Release Build
 
 1. Create a signing key (one-time):
@@ -107,6 +159,44 @@ adb install app/build/outputs/apk/debug/app-debug.apk
    ```bash
    ./gradlew assembleRelease
    ```
+
+4. The signed APK will be at:
+   ```
+   app/build/outputs/apk/release/app-release.apk
+   ```
+
+### Creating APKs for Distribution
+
+#### Debug APK (for testing)
+```bash
+JAVA_HOME=/path/to/jdk17 ./gradlew assembleDebug
+# Output: app/build/outputs/apk/debug/app-debug.apk
+```
+
+#### Release APK (for distribution)
+```bash
+JAVA_HOME=/path/to/jdk17 ./gradlew assembleRelease
+# Output: app/build/outputs/apk/release/app-release.apk
+```
+
+#### Build Both Variants
+```bash
+JAVA_HOME=/path/to/jdk17 ./gradlew assemble
+```
+
+#### Clean Build (if encountering issues)
+```bash
+JAVA_HOME=/path/to/jdk17 ./gradlew clean assembleDebug
+```
+
+#### APK Size Optimization
+The release APK includes native libraries for all architectures. To create smaller APKs per architecture:
+```bash
+# Build separate APKs per ABI (add to app/build.gradle.kts)
+# splits { abi { isEnable = true } }
+./gradlew assembleRelease
+# Creates: app-arm64-v8a-release.apk, app-armeabi-v7a-release.apk, etc.
+```
 
 ## Testing
 
@@ -284,6 +374,18 @@ The app uses the embedded OpenVPN3 library (from ics-openvpn) for VPN connection
 
 ### Build Fails with JDK Version Error
 Ensure you're using JDK 17. The Android Gradle Plugin doesn't support JDK 25+.
+
+Set JAVA_HOME explicitly:
+```bash
+JAVA_HOME=/path/to/jdk17 ./gradlew assembleDebug
+```
+
+### INSTALL_FAILED_UPDATE_INCOMPATIBLE
+The installed app was signed with a different key. Uninstall first:
+```bash
+adb uninstall com.gatekey.client
+adb install app/build/outputs/apk/debug/app-debug.apk
+```
 
 ### NDK Not Found
 Install NDK via Android Studio: SDK Manager > SDK Tools > NDK (Side by side) > 29.0.14206865
