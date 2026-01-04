@@ -142,8 +142,9 @@ class OpenVpnServiceManager @Inject constructor(
             stopIntent.action = OpenVPNService.DISCONNECT_VPN
             try {
                 context.startService(stopIntent)
-                // Give any existing process time to clean up
-                Thread.sleep(300)
+                // Give existing process enough time to fully clean up
+                // 500ms is needed for the native OpenVPN process to terminate
+                Thread.sleep(500)
             } catch (e: Exception) {
                 Log.d(TAG, "No existing VPN service to stop: ${e.message}")
             }

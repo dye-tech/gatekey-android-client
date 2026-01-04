@@ -214,11 +214,15 @@ class VpnManager @Inject constructor(
                 _vpnState.value = VpnState.Connected(id, name)
             }
             ConnectionState.DISCONNECTED -> {
-                _vpnState.value = VpnState.Idle
-                _activeConnections.value = emptyMap()
-                currentConnectionId = null
-                currentConnectionName = null
-                currentConnectionType = null
+                // Don't clear connection state if we're actively connecting to a new VPN
+                // This prevents the DISCONNECTED from old VPN cleanup from breaking new connection
+                if (_vpnState.value !is VpnState.Connecting) {
+                    _vpnState.value = VpnState.Idle
+                    _activeConnections.value = emptyMap()
+                    currentConnectionId = null
+                    currentConnectionName = null
+                    currentConnectionType = null
+                }
             }
             ConnectionState.ERROR -> {
                 _vpnState.value = VpnState.Error(openVpnServiceManager.statusMessage.value.ifEmpty { "Connection failed" })
