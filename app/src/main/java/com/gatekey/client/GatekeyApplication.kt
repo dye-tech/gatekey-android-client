@@ -6,6 +6,7 @@ import android.app.NotificationManager
 import android.content.Context
 import android.graphics.Color
 import android.os.Build
+import com.gatekey.client.util.AppLogger
 import dagger.hilt.android.HiltAndroidApp
 import de.blinkt.openvpn.core.GlobalPreferences
 import de.blinkt.openvpn.core.OpenVPNService
@@ -22,6 +23,10 @@ class GatekeyApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        // Initialize the application logger
+        AppLogger.init(this)
+        AppLogger.i("GatekeyApplication", "Application started")
+
         // Create notification channels in all processes - OpenVPN service
         // runs in :openvpn process and needs these channels available
         createNotificationChannels()

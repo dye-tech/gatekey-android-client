@@ -190,14 +190,76 @@ class VpnManager @Inject constructor(
 
         openVpnServiceManager.disconnect()
 
-        currentConnectionId = null
-        currentConnectionName = null
-        currentConnectionType = null
-        _activeConnections.value = emptyMap()
-        _vpnState.value = VpnState.Idle
+        // Start a timeout to check disconnect status
+        // If VPN is still connected after timeout, retry disconnect
+        scope.launch {
+            kotlinx.coroutines.delay(3000) // Wait 3 seconds for OpenVPN to disconnect
+            if (_vpnState.value is VpnState.Disconnecting) {
+                // Check if VPN actually disconnected by checking OpenVPN's state
+                val actualState = openVpnServiceManager.connectionState.value
+                if (actualState == ConnectionState.CONNECTED || actualState == ConnectionState.CONNECTING) {
+                    Log.w(TAG, "Disconnect timeout but VPN still active (state=$actualState), retrying forceful disconnect")
+                    // VPN didn't actually disconnect - try forceful disconnect
+                    openVpnServiceManager.forceDisconnect()
+
+                    // Wait another 2 seconds for forceful disconnect
+                    kotlinx.coroutines.delay(2000)
+
+                    val finalState = openVpnServiceManager.connectionState.value
+                    if (finalState == ConnectionState.CONNECTED || finalState == ConnectionState.CONNECTING) {
+                        Log.e(TAG, "Forceful disconnect failed, VPN still active")
+                        _vpnState.value = VpnState.Error("Failed to disconnect VPN. Please try again or restart the app.")
+                    } else {
+                        Log.d(TAG, "Forceful disconnect succeeded")
+                        _vpnState.value = VpnState.Idle
+                        _activeConnections.value = emptyMap()
+                        currentConnectionId = null
+                        currentConnectionName = null
+                        currentConnectionType = null
+                    }
+                } else {
+                    Log.d(TAG, "Disconnect timeout - VPN disconnected (state=$actualState), setting to Idle")
+                    _vpnState.value = VpnState.Idle
+                    _activeConnections.value = emptyMap()
+                    currentConnectionId = null
+                    currentConnectionName = null
+                    currentConnectionType = null
+                }
+            }
+        }
     }
 
     private fun updateConnectionState(state: ConnectionState) {
+        // If we're actively disconnecting, only process DISCONNECTED state
+        // Ignore intermediate states like CONNECTING that OpenVPN may report during shutdown
+        if (_vpnState.value is VpnState.Disconnecting) {
+            if (state == ConnectionState.DISCONNECTED) {
+                Log.d(TAG, "VPN disconnected, setting state to Idle. Active connections before: ${_activeConnections.value.size}, vpnState before: ${_vpnState.value}")
+                _vpnState.value = VpnState.Idle
+                _activeConnections.value = emptyMap()
+                Log.d(TAG, "Active connections after clear: ${_activeConnections.value.size}, vpnState after: ${_vpnState.value}")
+                currentConnectionId = null
+                currentConnectionName = null
+                currentConnectionType = null
+            }
+            // Ignore all other states while disconnecting
+            return
+        }
+
+        // Handle disconnected state even if we don't have connection info
+        // This can happen if the app was restarted while VPN was connected
+        if (state == ConnectionState.DISCONNECTED) {
+            if (_vpnState.value !is VpnState.Idle && _vpnState.value !is VpnState.Connecting) {
+                Log.d(TAG, "VPN disconnected (no connection info), setting state to Idle")
+                _vpnState.value = VpnState.Idle
+                _activeConnections.value = emptyMap()
+                currentConnectionId = null
+                currentConnectionName = null
+                currentConnectionType = null
+            }
+            return
+        }
+
         val id = currentConnectionId ?: return
         val name = currentConnectionName ?: return
         val type = currentConnectionType ?: return

@@ -67,11 +67,14 @@ fun GatekeyApp(
     }
 
     LaunchedEffect(isLoggedIn) {
+        android.util.Log.d("GatekeyApp", "LaunchedEffect triggered - isLoggedIn: $isLoggedIn, authState: $authState")
         if (isLoggedIn) {
+            android.util.Log.d("GatekeyApp", "Navigating to Home screen")
             navController.navigate(Screen.Home.route) {
                 popUpTo(Screen.Login.route) { inclusive = true }
             }
         } else if (authState is com.gatekey.client.data.repository.AuthRepository.AuthState.LoggedOut) {
+            android.util.Log.d("GatekeyApp", "Navigating to Login screen (logged out)")
             navController.navigate(Screen.Login.route) {
                 popUpTo(0) { inclusive = true }
             }
