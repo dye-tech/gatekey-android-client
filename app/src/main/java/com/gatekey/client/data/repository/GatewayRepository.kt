@@ -114,6 +114,59 @@ class GatewayRepository @Inject constructor(
         }
     }
 
+    // ============= WireGuard Methods =============
+
+    suspend fun generateWireGuardConfig(gatewayId: String): Result<GeneratedConfig> {
+        return try {
+            val response = api.generateWireGuardConfig(GenerateConfigRequest(gatewayId))
+            if (response.isSuccessful) {
+                response.body()?.let { Result.Success(it) }
+                    ?: Result.Error("Empty response")
+            } else {
+                Result.Error(
+                    response.errorBody()?.string() ?: "Failed to generate WireGuard config",
+                    response.code()
+                )
+            }
+        } catch (e: Exception) {
+            Result.Error(e.message ?: "Network error")
+        }
+    }
+
+    suspend fun downloadWireGuardConfig(configId: String): Result<String> {
+        return try {
+            val response = api.downloadWireGuardConfig(configId)
+            if (response.isSuccessful) {
+                response.body()?.string()?.let { Result.Success(it) }
+                    ?: Result.Error("Empty config")
+            } else {
+                Result.Error(
+                    response.errorBody()?.string() ?: "Failed to download WireGuard config",
+                    response.code()
+                )
+            }
+        } catch (e: Exception) {
+            Result.Error(e.message ?: "Network error")
+        }
+    }
+
+    suspend fun generateWireGuardMeshConfig(hubId: String): Result<GeneratedMeshConfig> {
+        return try {
+            val response = api.generateWireGuardMeshConfig(GenerateMeshConfigRequest(hubId))
+            if (response.isSuccessful) {
+                response.body()?.let { Result.Success(it) }
+                    ?: Result.Error("Empty response")
+            } else {
+                Result.Error(
+                    response.errorBody()?.string() ?: "Failed to generate WireGuard mesh config",
+                    response.code()
+                )
+            }
+        } catch (e: Exception) {
+            Result.Error(e.message ?: "Network error")
+        }
+    }
+
     fun updateConnectionState(id: String, connection: ActiveConnection) {
         _activeConnections.value = _activeConnections.value.toMutableMap().apply {
             put(id, connection)

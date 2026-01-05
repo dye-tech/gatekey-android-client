@@ -23,6 +23,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.gatekey.client.data.model.ConnectionState
 import com.gatekey.client.data.model.Gateway
 import com.gatekey.client.data.model.MeshHub
+import com.gatekey.client.data.model.VpnProtocol
 import com.gatekey.client.ui.theme.GatekeyGreen
 import com.gatekey.client.ui.theme.GatekeyRed
 import com.gatekey.client.ui.theme.GatekeyYellow
@@ -209,6 +210,8 @@ fun GatewayDetailCard(
                             fontWeight = FontWeight.Bold
                         )
                         Spacer(modifier = Modifier.width(8.dp))
+                        ProtocolBadge(protocol = gateway.getProtocol())
+                        Spacer(modifier = Modifier.width(8.dp))
                         StatusBadge(
                             isActive = gateway.isActive,
                             isConnected = isConnected
@@ -233,7 +236,7 @@ fun GatewayDetailCard(
                 DetailItem(
                     icon = Icons.Default.Dns,
                     label = "Port",
-                    value = "${gateway.vpnPort ?: 1194}/${(gateway.vpnProtocol ?: "udp").uppercase()}"
+                    value = "${gateway.vpnPort ?: 1194}"
                 )
                 if (gateway.publicIp != null) {
                     DetailItem(
@@ -343,8 +346,10 @@ fun ActiveConnectionCard(
     val isConnected = vpnState is VpnManager.VpnState.Connected
     val isConnecting = vpnState is VpnManager.VpnState.Connecting
 
-    // Get the connected gateway/hub name
-    val connectionName = activeConnections.values.firstOrNull()?.name ?: "VPN Connection"
+    // Get the connected gateway/hub info
+    val activeConnection = activeConnections.values.firstOrNull()
+    val connectionName = activeConnection?.name ?: "VPN Connection"
+    val connectionProtocol = activeConnection?.vpnProtocol ?: VpnProtocol.OPENVPN
 
     Card(
         modifier = Modifier
@@ -378,11 +383,15 @@ fun ActiveConnectionCard(
                     )
                     Spacer(modifier = Modifier.width(12.dp))
                     Column {
-                        Text(
-                            text = connectionName,
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = connectionName,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            ProtocolBadge(protocol = connectionProtocol)
+                        }
                         Text(
                             text = if (isConnected) "Connected" else "Connecting...",
                             style = MaterialTheme.typography.bodySmall,
@@ -646,6 +655,8 @@ fun MeshHubDetailCard(
                             fontWeight = FontWeight.Bold
                         )
                         Spacer(modifier = Modifier.width(8.dp))
+                        ProtocolBadge(protocol = hub.getProtocol())
+                        Spacer(modifier = Modifier.width(8.dp))
                         StatusBadge(
                             isActive = hub.status == "online",
                             isConnected = isConnected
@@ -664,7 +675,7 @@ fun MeshHubDetailCard(
                 DetailItem(
                     icon = Icons.Default.Dns,
                     label = "Port",
-                    value = "${hub.vpnPort ?: 1194}/${(hub.vpnProtocol ?: "udp").uppercase()}"
+                    value = "${hub.vpnPort ?: 1194}"
                 )
                 // Show connected IP if connected, otherwise show publicEndpoint
                 val displayIp = if (isConnected && connectedServerIp != null) {
@@ -753,6 +764,26 @@ fun StatusBadge(isActive: Boolean, isConnected: Boolean) {
         isConnected -> GatekeyGreen to "Connected"
         isActive -> MaterialTheme.colorScheme.primary to "Online"
         else -> MaterialTheme.colorScheme.error to "Offline"
+    }
+
+    Surface(
+        shape = MaterialTheme.shapes.small,
+        color = color.copy(alpha = 0.1f)
+    ) {
+        Text(
+            text = text,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+            style = MaterialTheme.typography.labelSmall,
+            color = color
+        )
+    }
+}
+
+@Composable
+fun ProtocolBadge(protocol: VpnProtocol) {
+    val (color, text) = when (protocol) {
+        VpnProtocol.WIREGUARD -> MaterialTheme.colorScheme.tertiary to "WireGuard"
+        VpnProtocol.OPENVPN -> MaterialTheme.colorScheme.secondary to "OpenVPN"
     }
 
     Surface(

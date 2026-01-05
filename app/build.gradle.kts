@@ -68,12 +68,12 @@ android {
     }
 
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
+        sourceCompatibility = JavaVersion.VERSION_21
+        targetCompatibility = JavaVersion.VERSION_21
     }
 
     kotlinOptions {
-        jvmTarget = "17"
+        jvmTarget = "21"
     }
 
     buildFeatures {
@@ -96,6 +96,9 @@ android {
 dependencies {
     // OpenVPN library
     implementation(project(":openvpn"))
+
+    // WireGuard library
+    implementation("com.wireguard.android:tunnel:1.0.20230706")
 
     // Core Android
     implementation("androidx.core:core-ktx:1.12.0")
