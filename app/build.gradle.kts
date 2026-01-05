@@ -1,9 +1,18 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("com.google.dagger.hilt.android")
     id("org.jetbrains.kotlin.plugin.serialization")
     kotlin("kapt")
+}
+
+// Load keystore properties from local file (not committed to git)
+val keystorePropertiesFile = rootProject.file("keystore.properties")
+val keystoreProperties = Properties()
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(keystorePropertiesFile.inputStream())
 }
 
 android {
@@ -17,9 +26,12 @@ android {
         create("release") {
             val keystorePath = System.getenv("KEYSTORE_FILE") ?: "../gatekey-release.keystore"
             storeFile = file(keystorePath)
-            storePassword = System.getenv("KEYSTORE_PASSWORD") ?: ""
-            keyAlias = System.getenv("KEY_ALIAS") ?: "gatekey"
-            keyPassword = System.getenv("KEYSTORE_PASSWORD") ?: "" // PKCS12 uses same password
+            storePassword = System.getenv("KEYSTORE_PASSWORD")
+                ?: keystoreProperties.getProperty("KEYSTORE_PASSWORD") ?: ""
+            keyAlias = System.getenv("KEY_ALIAS")
+                ?: keystoreProperties.getProperty("KEY_ALIAS") ?: "gatekey"
+            keyPassword = System.getenv("KEYSTORE_PASSWORD")
+                ?: keystoreProperties.getProperty("KEY_PASSWORD") ?: ""
         }
     }
 
