@@ -60,7 +60,7 @@ interface GatekeyApi {
     @GET("api/v1/mesh/hubs")
     suspend fun getMeshHubs(): Response<MeshHubsResponse>
 
-    // ============= VPN Configs =============
+    // ============= OpenVPN Configs =============
 
     @POST("api/v1/configs/generate")
     suspend fun generateConfig(
@@ -84,4 +84,21 @@ interface GatekeyApi {
     suspend fun revokeConfig(
         @Path("id") configId: String
     ): Response<Unit>
+
+    // ============= WireGuard Configs =============
+
+    @POST("api/v1/wireguard/configs/generate")
+    suspend fun generateWireGuardConfig(
+        @Body request: GenerateConfigRequest
+    ): Response<GeneratedConfig>
+
+    @GET("api/v1/wireguard/configs/download/{configId}")
+    suspend fun downloadWireGuardConfig(
+        @Path("configId") configId: String
+    ): Response<ResponseBody>
+
+    @POST("api/v1/mesh/wireguard/generate-config")
+    suspend fun generateWireGuardMeshConfig(
+        @Body request: GenerateMeshConfigRequest
+    ): Response<GeneratedMeshConfig>
 }

@@ -8,6 +8,7 @@ import android.util.Log
 import com.gatekey.client.data.model.ActiveConnection
 import com.gatekey.client.data.model.ConnectionState
 import com.gatekey.client.data.model.ConnectionType
+import com.gatekey.client.data.model.VpnProtocol
 import com.gatekey.client.data.repository.GatewayRepository
 import com.gatekey.client.data.repository.Result
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -17,6 +18,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -25,7 +27,8 @@ import javax.inject.Singleton
 class VpnManager @Inject constructor(
     @ApplicationContext private val context: Context,
     private val gatewayRepository: GatewayRepository,
-    private val openVpnServiceManager: OpenVpnServiceManager
+    private val openVpnServiceManager: OpenVpnServiceManager,
+    private val wireGuardServiceManager: WireGuardServiceManager
 ) {
     companion object {
         private const val TAG = "VpnManager"
@@ -39,17 +42,27 @@ class VpnManager @Inject constructor(
     private val _activeConnections = MutableStateFlow<Map<String, ActiveConnection>>(emptyMap())
     val activeConnections: StateFlow<Map<String, ActiveConnection>> = _activeConnections.asStateFlow()
 
-    // Expose connection details from OpenVPN
-    val localIp: StateFlow<String?> = openVpnServiceManager.localIp
-    val remoteIp: StateFlow<String?> = openVpnServiceManager.remoteIp
-    val remotePort: StateFlow<String?> = openVpnServiceManager.remotePort
-    val bytesIn: StateFlow<Long> = openVpnServiceManager.bytesIn
-    val bytesOut: StateFlow<Long> = openVpnServiceManager.bytesOut
+    // Expose connection details - combine from both service managers
+    private val _localIp = MutableStateFlow<String?>(null)
+    val localIp: StateFlow<String?> = _localIp.asStateFlow()
+
+    private val _remoteIp = MutableStateFlow<String?>(null)
+    val remoteIp: StateFlow<String?> = _remoteIp.asStateFlow()
+
+    private val _remotePort = MutableStateFlow<String?>(null)
+    val remotePort: StateFlow<String?> = _remotePort.asStateFlow()
+
+    private val _bytesIn = MutableStateFlow(0L)
+    val bytesIn: StateFlow<Long> = _bytesIn.asStateFlow()
+
+    private val _bytesOut = MutableStateFlow(0L)
+    val bytesOut: StateFlow<Long> = _bytesOut.asStateFlow()
 
     // Track current connection info for state updates
     private var currentConnectionId: String? = null
     private var currentConnectionName: String? = null
     private var currentConnectionType: ConnectionType? = null
+    private var currentVpnProtocol: VpnProtocol? = null
 
     sealed class VpnState {
         data object Idle : VpnState()
@@ -63,11 +76,77 @@ class VpnManager @Inject constructor(
     init {
         // Register for status updates
         openVpnServiceManager.bind()
+        wireGuardServiceManager.bind()
 
         // Observe connection state changes from OpenVPN
         scope.launch {
             openVpnServiceManager.connectionState.collect { state ->
-                updateConnectionState(state)
+                if (currentVpnProtocol == VpnProtocol.OPENVPN || currentVpnProtocol == null) {
+                    updateConnectionState(state)
+                }
+            }
+        }
+
+        // Observe connection state changes from WireGuard
+        scope.launch {
+            wireGuardServiceManager.connectionState.collect { state ->
+                if (currentVpnProtocol == VpnProtocol.WIREGUARD) {
+                    updateConnectionState(state)
+                }
+            }
+        }
+
+        // Observe connection details from OpenVPN
+        scope.launch {
+            openVpnServiceManager.localIp.collect { ip ->
+                if (currentVpnProtocol == VpnProtocol.OPENVPN) _localIp.value = ip
+            }
+        }
+        scope.launch {
+            openVpnServiceManager.remoteIp.collect { ip ->
+                if (currentVpnProtocol == VpnProtocol.OPENVPN) _remoteIp.value = ip
+            }
+        }
+        scope.launch {
+            openVpnServiceManager.remotePort.collect { port ->
+                if (currentVpnProtocol == VpnProtocol.OPENVPN) _remotePort.value = port
+            }
+        }
+        scope.launch {
+            openVpnServiceManager.bytesIn.collect { bytes ->
+                if (currentVpnProtocol == VpnProtocol.OPENVPN) _bytesIn.value = bytes
+            }
+        }
+        scope.launch {
+            openVpnServiceManager.bytesOut.collect { bytes ->
+                if (currentVpnProtocol == VpnProtocol.OPENVPN) _bytesOut.value = bytes
+            }
+        }
+
+        // Observe connection details from WireGuard
+        scope.launch {
+            wireGuardServiceManager.localIp.collect { ip ->
+                if (currentVpnProtocol == VpnProtocol.WIREGUARD) _localIp.value = ip
+            }
+        }
+        scope.launch {
+            wireGuardServiceManager.remoteIp.collect { ip ->
+                if (currentVpnProtocol == VpnProtocol.WIREGUARD) _remoteIp.value = ip
+            }
+        }
+        scope.launch {
+            wireGuardServiceManager.remotePort.collect { port ->
+                if (currentVpnProtocol == VpnProtocol.WIREGUARD) _remotePort.value = port
+            }
+        }
+        scope.launch {
+            wireGuardServiceManager.bytesIn.collect { bytes ->
+                if (currentVpnProtocol == VpnProtocol.WIREGUARD) _bytesIn.value = bytes
+            }
+        }
+        scope.launch {
+            wireGuardServiceManager.bytesOut.collect { bytes ->
+                if (currentVpnProtocol == VpnProtocol.WIREGUARD) _bytesOut.value = bytes
             }
         }
     }
@@ -88,15 +167,39 @@ class VpnManager @Inject constructor(
 
         _vpnState.value = VpnState.Connecting(gatewayId, gateway.name)
 
+        // Determine protocol from gateway type (wireguard or openvpn)
+        val protocol = VpnProtocol.fromString(gateway.gatewayType ?: gateway.vpnProtocol)
+
         // Store connection info for state updates
         currentConnectionId = gatewayId
         currentConnectionName = gateway.name
         currentConnectionType = ConnectionType.GATEWAY
+        currentVpnProtocol = protocol
 
+        // Update active connections
+        _activeConnections.value = mapOf(
+            gatewayId to ActiveConnection(
+                id = gatewayId,
+                name = gateway.name,
+                type = ConnectionType.GATEWAY,
+                state = ConnectionState.CONNECTING,
+                connectedAt = null,
+                vpnProtocol = protocol
+            )
+        )
+
+        return when (protocol) {
+            VpnProtocol.WIREGUARD -> connectWireGuardGateway(gatewayId, gateway.name)
+            VpnProtocol.OPENVPN -> connectOpenVpnGateway(gatewayId, gateway.name)
+        }
+    }
+
+    private suspend fun connectOpenVpnGateway(gatewayId: String, gatewayName: String): Result<Unit> {
         // Generate config
         val configResult = gatewayRepository.generateConfig(gatewayId)
         if (configResult is Result.Error) {
             _vpnState.value = VpnState.Error(configResult.message)
+            _activeConnections.value = emptyMap()
             return configResult
         }
 
@@ -106,28 +209,50 @@ class VpnManager @Inject constructor(
         val downloadResult = gatewayRepository.downloadConfig(generatedConfig.id)
         if (downloadResult is Result.Error) {
             _vpnState.value = VpnState.Error(downloadResult.message)
+            _activeConnections.value = emptyMap()
             return downloadResult
         }
 
         val ovpnConfig = (downloadResult as Result.Success).data
 
-        // Update active connections
-        _activeConnections.value = mapOf(
-            gatewayId to ActiveConnection(
-                id = gatewayId,
-                name = gateway.name,
-                type = ConnectionType.GATEWAY,
-                state = ConnectionState.CONNECTING,
-                connectedAt = null
-            )
-        )
-
         // Start VPN via embedded OpenVPN library
         val started = openVpnServiceManager.startVpn(ovpnConfig)
         if (!started) {
-            _vpnState.value = VpnState.Error("Failed to start VPN connection")
+            _vpnState.value = VpnState.Error("Failed to start OpenVPN connection")
             _activeConnections.value = emptyMap()
-            return Result.Error("Failed to start VPN connection")
+            return Result.Error("Failed to start OpenVPN connection")
+        }
+
+        return Result.Success(Unit)
+    }
+
+    private suspend fun connectWireGuardGateway(gatewayId: String, gatewayName: String): Result<Unit> {
+        // Generate WireGuard config
+        val configResult = gatewayRepository.generateWireGuardConfig(gatewayId)
+        if (configResult is Result.Error) {
+            _vpnState.value = VpnState.Error(configResult.message)
+            _activeConnections.value = emptyMap()
+            return configResult
+        }
+
+        val generatedConfig = (configResult as Result.Success).data
+
+        // Download WireGuard config
+        val downloadResult = gatewayRepository.downloadWireGuardConfig(generatedConfig.id)
+        if (downloadResult is Result.Error) {
+            _vpnState.value = VpnState.Error(downloadResult.message)
+            _activeConnections.value = emptyMap()
+            return downloadResult
+        }
+
+        val wgConfig = (downloadResult as Result.Success).data
+
+        // Start VPN via WireGuard library
+        val started = wireGuardServiceManager.startVpn(wgConfig)
+        if (!started) {
+            _vpnState.value = VpnState.Error("Failed to start WireGuard connection")
+            _activeConnections.value = emptyMap()
+            return Result.Error("Failed to start WireGuard connection")
         }
 
         return Result.Success(Unit)
@@ -143,22 +268,14 @@ class VpnManager @Inject constructor(
         val hubName = hub.name ?: "Mesh Hub"
         _vpnState.value = VpnState.Connecting(hubId, hubName)
 
+        // Determine protocol from hub type (wireguard or openvpn)
+        val protocol = VpnProtocol.fromString(hub.hubType ?: hub.vpnProtocol)
+
         // Store connection info for state updates
         currentConnectionId = hubId
         currentConnectionName = hubName
         currentConnectionType = ConnectionType.MESH_HUB
-
-        // Generate config - mesh endpoint returns config inline
-        val configResult = gatewayRepository.generateMeshConfig(hubId)
-        if (configResult is Result.Error) {
-            _vpnState.value = VpnState.Error(configResult.message)
-            return configResult
-        }
-
-        val generatedMeshConfig = (configResult as Result.Success).data
-
-        // Mesh config is returned directly in the response
-        val ovpnConfig = generatedMeshConfig.config
+        currentVpnProtocol = protocol
 
         // Update active connections
         _activeConnections.value = mapOf(
@@ -167,16 +284,62 @@ class VpnManager @Inject constructor(
                 name = hubName,
                 type = ConnectionType.MESH_HUB,
                 state = ConnectionState.CONNECTING,
-                connectedAt = null
+                connectedAt = null,
+                vpnProtocol = protocol
             )
         )
+
+        return when (protocol) {
+            VpnProtocol.WIREGUARD -> connectWireGuardMeshHub(hubId, hubName)
+            VpnProtocol.OPENVPN -> connectOpenVpnMeshHub(hubId, hubName)
+        }
+    }
+
+    private suspend fun connectOpenVpnMeshHub(hubId: String, hubName: String): Result<Unit> {
+        // Generate config - mesh endpoint returns config inline
+        val configResult = gatewayRepository.generateMeshConfig(hubId)
+        if (configResult is Result.Error) {
+            _vpnState.value = VpnState.Error(configResult.message)
+            _activeConnections.value = emptyMap()
+            return configResult
+        }
+
+        val generatedMeshConfig = (configResult as Result.Success).data
+
+        // Mesh config is returned directly in the response
+        val ovpnConfig = generatedMeshConfig.config
 
         // Start VPN via embedded OpenVPN library
         val started = openVpnServiceManager.startVpn(ovpnConfig)
         if (!started) {
-            _vpnState.value = VpnState.Error("Failed to start VPN connection")
+            _vpnState.value = VpnState.Error("Failed to start OpenVPN connection")
             _activeConnections.value = emptyMap()
-            return Result.Error("Failed to start VPN connection")
+            return Result.Error("Failed to start OpenVPN connection")
+        }
+
+        return Result.Success(Unit)
+    }
+
+    private suspend fun connectWireGuardMeshHub(hubId: String, hubName: String): Result<Unit> {
+        // Generate WireGuard mesh config
+        val configResult = gatewayRepository.generateWireGuardMeshConfig(hubId)
+        if (configResult is Result.Error) {
+            _vpnState.value = VpnState.Error(configResult.message)
+            _activeConnections.value = emptyMap()
+            return configResult
+        }
+
+        val generatedMeshConfig = (configResult as Result.Success).data
+
+        // WireGuard mesh config is returned directly in the response
+        val wgConfig = generatedMeshConfig.config
+
+        // Start VPN via WireGuard library
+        val started = wireGuardServiceManager.startVpn(wgConfig)
+        if (!started) {
+            _vpnState.value = VpnState.Error("Failed to start WireGuard connection")
+            _activeConnections.value = emptyMap()
+            return Result.Error("Failed to start WireGuard connection")
         }
 
         return Result.Success(Unit)
@@ -188,45 +351,70 @@ class VpnManager @Inject constructor(
     fun disconnect() {
         _vpnState.value = VpnState.Disconnecting
 
-        openVpnServiceManager.disconnect()
-
-        // Start a timeout to check disconnect status
-        // If VPN is still connected after timeout, retry disconnect
-        scope.launch {
-            kotlinx.coroutines.delay(3000) // Wait 3 seconds for OpenVPN to disconnect
-            if (_vpnState.value is VpnState.Disconnecting) {
-                // Check if VPN actually disconnected by checking OpenVPN's state
-                val actualState = openVpnServiceManager.connectionState.value
-                if (actualState == ConnectionState.CONNECTED || actualState == ConnectionState.CONNECTING) {
-                    Log.w(TAG, "Disconnect timeout but VPN still active (state=$actualState), retrying forceful disconnect")
-                    // VPN didn't actually disconnect - try forceful disconnect
-                    openVpnServiceManager.forceDisconnect()
-
-                    // Wait another 2 seconds for forceful disconnect
-                    kotlinx.coroutines.delay(2000)
-
-                    val finalState = openVpnServiceManager.connectionState.value
-                    if (finalState == ConnectionState.CONNECTED || finalState == ConnectionState.CONNECTING) {
-                        Log.e(TAG, "Forceful disconnect failed, VPN still active")
-                        _vpnState.value = VpnState.Error("Failed to disconnect VPN. Please try again or restart the app.")
-                    } else {
-                        Log.d(TAG, "Forceful disconnect succeeded")
+        // Disconnect based on current protocol
+        when (currentVpnProtocol) {
+            VpnProtocol.WIREGUARD -> {
+                wireGuardServiceManager.disconnect()
+                // WireGuard disconnect is synchronous, update state immediately
+                scope.launch {
+                    kotlinx.coroutines.delay(500) // Brief delay to ensure cleanup
+                    if (_vpnState.value is VpnState.Disconnecting) {
                         _vpnState.value = VpnState.Idle
                         _activeConnections.value = emptyMap()
-                        currentConnectionId = null
-                        currentConnectionName = null
-                        currentConnectionType = null
+                        clearConnectionState()
                     }
-                } else {
-                    Log.d(TAG, "Disconnect timeout - VPN disconnected (state=$actualState), setting to Idle")
-                    _vpnState.value = VpnState.Idle
-                    _activeConnections.value = emptyMap()
-                    currentConnectionId = null
-                    currentConnectionName = null
-                    currentConnectionType = null
+                }
+            }
+            VpnProtocol.OPENVPN, null -> {
+                openVpnServiceManager.disconnect()
+
+                // Start a timeout to check disconnect status
+                // If VPN is still connected after timeout, retry disconnect
+                scope.launch {
+                    kotlinx.coroutines.delay(3000) // Wait 3 seconds for OpenVPN to disconnect
+                    if (_vpnState.value is VpnState.Disconnecting) {
+                        // Check if VPN actually disconnected by checking OpenVPN's state
+                        val actualState = openVpnServiceManager.connectionState.value
+                        if (actualState == ConnectionState.CONNECTED || actualState == ConnectionState.CONNECTING) {
+                            Log.w(TAG, "Disconnect timeout but VPN still active (state=$actualState), retrying forceful disconnect")
+                            // VPN didn't actually disconnect - try forceful disconnect
+                            openVpnServiceManager.forceDisconnect()
+
+                            // Wait another 2 seconds for forceful disconnect
+                            kotlinx.coroutines.delay(2000)
+
+                            val finalState = openVpnServiceManager.connectionState.value
+                            if (finalState == ConnectionState.CONNECTED || finalState == ConnectionState.CONNECTING) {
+                                Log.e(TAG, "Forceful disconnect failed, VPN still active")
+                                _vpnState.value = VpnState.Error("Failed to disconnect VPN. Please try again or restart the app.")
+                            } else {
+                                Log.d(TAG, "Forceful disconnect succeeded")
+                                _vpnState.value = VpnState.Idle
+                                _activeConnections.value = emptyMap()
+                                clearConnectionState()
+                            }
+                        } else {
+                            Log.d(TAG, "Disconnect timeout - VPN disconnected (state=$actualState), setting to Idle")
+                            _vpnState.value = VpnState.Idle
+                            _activeConnections.value = emptyMap()
+                            clearConnectionState()
+                        }
+                    }
                 }
             }
         }
+    }
+
+    private fun clearConnectionState() {
+        currentConnectionId = null
+        currentConnectionName = null
+        currentConnectionType = null
+        currentVpnProtocol = null
+        _localIp.value = null
+        _remoteIp.value = null
+        _remotePort.value = null
+        _bytesIn.value = 0L
+        _bytesOut.value = 0L
     }
 
     private fun updateConnectionState(state: ConnectionState) {
@@ -238,9 +426,7 @@ class VpnManager @Inject constructor(
                 _vpnState.value = VpnState.Idle
                 _activeConnections.value = emptyMap()
                 Log.d(TAG, "Active connections after clear: ${_activeConnections.value.size}, vpnState after: ${_vpnState.value}")
-                currentConnectionId = null
-                currentConnectionName = null
-                currentConnectionType = null
+                clearConnectionState()
             }
             // Ignore all other states while disconnecting
             return
@@ -253,9 +439,7 @@ class VpnManager @Inject constructor(
                 Log.d(TAG, "VPN disconnected (no connection info), setting state to Idle")
                 _vpnState.value = VpnState.Idle
                 _activeConnections.value = emptyMap()
-                currentConnectionId = null
-                currentConnectionName = null
-                currentConnectionType = null
+                clearConnectionState()
             }
             return
         }
@@ -288,13 +472,15 @@ class VpnManager @Inject constructor(
                 if (_vpnState.value !is VpnState.Connecting) {
                     _vpnState.value = VpnState.Idle
                     _activeConnections.value = emptyMap()
-                    currentConnectionId = null
-                    currentConnectionName = null
-                    currentConnectionType = null
+                    clearConnectionState()
                 }
             }
             ConnectionState.ERROR -> {
-                _vpnState.value = VpnState.Error(openVpnServiceManager.statusMessage.value.ifEmpty { "Connection failed" })
+                val errorMessage = when (currentVpnProtocol) {
+                    VpnProtocol.WIREGUARD -> wireGuardServiceManager.statusMessage.value.ifEmpty { "Connection failed" }
+                    VpnProtocol.OPENVPN, null -> openVpnServiceManager.statusMessage.value.ifEmpty { "Connection failed" }
+                }
+                _vpnState.value = VpnState.Error(errorMessage)
             }
             ConnectionState.CONNECTING -> {
                 _vpnState.value = VpnState.Connecting(id, name)
@@ -307,5 +493,6 @@ class VpnManager @Inject constructor(
 
     fun cleanup() {
         openVpnServiceManager.unbind()
+        wireGuardServiceManager.unbind()
     }
 }

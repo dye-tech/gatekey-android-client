@@ -3,6 +3,30 @@ package com.gatekey.client.data.model
 import com.google.gson.annotations.SerializedName
 
 /**
+ * VPN protocol type
+ */
+enum class VpnProtocol {
+    OPENVPN,
+    WIREGUARD;
+
+    companion object {
+        fun fromString(value: String?): VpnProtocol {
+            return when (value?.lowercase()) {
+                "wireguard" -> WIREGUARD
+                else -> OPENVPN  // Default to OpenVPN
+            }
+        }
+    }
+
+    fun displayName(): String {
+        return when (this) {
+            OPENVPN -> "OpenVPN"
+            WIREGUARD -> "WireGuard"
+        }
+    }
+}
+
+/**
  * Gateway information
  */
 data class Gateway(
@@ -12,11 +36,14 @@ data class Gateway(
     @SerializedName("publicIp") val publicIp: String? = null,
     @SerializedName("vpnPort") val vpnPort: Int? = null,
     @SerializedName("vpnProtocol") val vpnProtocol: String? = null,
+    @SerializedName("gatewayType") val gatewayType: String? = null,
     @SerializedName("isActive") val isActive: Boolean = true,
     @SerializedName("lastHeartbeat") val lastHeartbeat: String? = null,
     @SerializedName("description") val description: String? = null,
     @SerializedName("location") val location: String? = null
-)
+) {
+    fun getProtocol(): VpnProtocol = VpnProtocol.fromString(gatewayType ?: vpnProtocol)
+}
 
 data class GatewaysResponse(
     @SerializedName("gateways") val gateways: List<Gateway>
@@ -31,11 +58,14 @@ data class MeshHub(
     @SerializedName("publicEndpoint") val publicEndpoint: String? = null,
     @SerializedName("vpnPort") val vpnPort: Int? = null,
     @SerializedName("vpnProtocol") val vpnProtocol: String? = null,
+    @SerializedName("hubType") val hubType: String? = null,
     @SerializedName("status") val status: String? = null,
     @SerializedName("lastHeartbeat") val lastHeartbeat: String? = null,
     @SerializedName("description") val description: String? = null,
     @SerializedName("networks") val networks: List<String>? = null
-)
+) {
+    fun getProtocol(): VpnProtocol = VpnProtocol.fromString(hubType ?: vpnProtocol)
+}
 
 data class MeshHubsResponse(
     @SerializedName("hubs") val hubs: List<MeshHub>
@@ -99,7 +129,8 @@ data class ActiveConnection(
     val remoteIp: String? = null,
     val bytesIn: Long = 0,
     val bytesOut: Long = 0,
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
+    val vpnProtocol: VpnProtocol = VpnProtocol.OPENVPN
 )
 
 enum class ConnectionType {
