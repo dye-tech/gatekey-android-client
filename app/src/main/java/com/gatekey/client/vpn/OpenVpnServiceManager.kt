@@ -1,19 +1,24 @@
 package com.gatekey.client.vpn
 
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.ServiceConnection
 import android.net.VpnService
+import android.os.IBinder
 import android.util.Log
 import com.gatekey.client.data.model.ConnectionState
 import dagger.hilt.android.qualifiers.ApplicationContext
 import de.blinkt.openvpn.VpnProfile
 import de.blinkt.openvpn.core.ConfigParser
 import de.blinkt.openvpn.core.ConnectionStatus
+import de.blinkt.openvpn.core.IOpenVPNServiceInternal
 import de.blinkt.openvpn.core.OpenVPNService
 import de.blinkt.openvpn.core.ProfileManager
 import de.blinkt.openvpn.core.StatusListener
 import de.blinkt.openvpn.core.VPNLaunchHelper
 import de.blinkt.openvpn.core.VpnStatus
+import de.blinkt.openvpn.core.keepVPNAlive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -44,6 +49,22 @@ class OpenVpnServiceManager @Inject constructor(
 
     // StatusListener for IPC with the :openvpn process
     private val statusListener = StatusListener()
+
+    // Service connection for calling stopVPN via AIDL
+    private var vpnService: IOpenVPNServiceInternal? = null
+    private var serviceBound = false
+    private val serviceConnection = object : ServiceConnection {
+        override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
+            vpnService = IOpenVPNServiceInternal.Stub.asInterface(service)
+            Log.d(TAG, "OpenVPNService bound")
+        }
+
+        override fun onServiceDisconnected(name: ComponentName?) {
+            vpnService = null
+            serviceBound = false
+            Log.d(TAG, "OpenVPNService unbound")
+        }
+    }
 
     private val _isAvailable = MutableStateFlow(true) // Always available since embedded
     val isAvailable: StateFlow<Boolean> = _isAvailable.asStateFlow()
@@ -90,20 +111,44 @@ class OpenVpnServiceManager @Inject constructor(
     }
 
     /**
-     * Bind - for embedded library, just ensure status listeners are registered
+     * Bind - for embedded library, ensure status listeners are registered
+     * and bind to the OpenVPNService for proper disconnect handling
      */
     fun bind() {
         registerListeners()
+        bindToService()
+    }
+
+    private fun bindToService() {
+        if (!serviceBound) {
+            try {
+                val intent = Intent(context, OpenVPNService::class.java)
+                intent.action = OpenVPNService.START_SERVICE
+                context.bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE)
+                serviceBound = true
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to bind to OpenVPNService", e)
+            }
+        }
     }
 
     /**
-     * Unbind - cleanup listeners
+     * Unbind - cleanup listeners and service binding
      */
     fun unbind() {
         if (isListenerRegistered) {
             VpnStatus.removeStateListener(this)
             VpnStatus.removeByteCountListener(this)
             isListenerRegistered = false
+        }
+        if (serviceBound) {
+            try {
+                context.unbindService(serviceConnection)
+                serviceBound = false
+                vpnService = null
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to unbind from OpenVPNService", e)
+            }
         }
     }
 
@@ -143,19 +188,16 @@ class OpenVpnServiceManager @Inject constructor(
         return try {
             _connectionState.value = ConnectionState.CONNECTING
 
-            // Always stop any existing VPN first to ensure clean state
+            // Stop any existing VPN first to ensure clean state using proper stopVPN method
             // This prevents race conditions where an old process cleanup
             // interferes with the new process startup
             Log.d(TAG, "Ensuring clean VPN state before starting new connection")
-            val stopIntent = Intent(context, OpenVPNService::class.java)
-            stopIntent.action = OpenVPNService.DISCONNECT_VPN
             try {
-                context.startService(stopIntent)
+                vpnService?.stopVPN(true) // true = replacing with new connection
                 // Give existing process enough time to fully clean up
-                // 500ms is needed for the native OpenVPN process to terminate
                 Thread.sleep(500)
             } catch (e: Exception) {
-                Log.d(TAG, "No existing VPN service to stop: ${e.message}")
+                Log.d(TAG, "No existing VPN to stop: ${e.message}")
             }
 
             // Parse the OpenVPN config
@@ -169,6 +211,9 @@ class OpenVpnServiceManager @Inject constructor(
             // Save the profile
             ProfileManager.setTemporaryProfile(context, profile)
             currentProfile = profile
+
+            // Ensure we're bound to the service for later disconnect
+            bindToService()
 
             // Start the VPN with all required parameters
             VPNLaunchHelper.startOpenVpn(profile, context, "GateKey connection", true)
@@ -187,19 +232,83 @@ class OpenVpnServiceManager @Inject constructor(
      */
     fun disconnect(): Boolean {
         return try {
+            Log.d(TAG, "Disconnecting VPN")
             _connectionState.value = ConnectionState.DISCONNECTING
 
-            val intent = Intent(context, OpenVPNService::class.java)
-            intent.action = OpenVPNService.DISCONNECT_VPN
-            context.startService(intent)
+            // Mark the profile as disconnected in ProfileManager
+            // This prevents auto-restart from trying to reconnect
+            ProfileManager.setConntectedVpnProfileDisconnected(context)
 
-            // Don't call setTemporaryProfile with null - it doesn't handle null
-            // Just clear our local reference
+            // Unschedule the keepVPNAlive job to prevent automatic reconnection
+            keepVPNAlive.unscheduleKeepVPNAliveJobService(context)
+
+            // Use the proper stopVPN method via AIDL if bound
+            val service = vpnService
+            if (service != null) {
+                try {
+                    Log.d(TAG, "Calling stopVPN(false) via AIDL")
+                    service.stopVPN(false) // false = not replacing with new connection
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to call stopVPN via AIDL, falling back to stopService", e)
+                    // Fall back to stopping the service
+                    val stopIntent = Intent(context, OpenVPNService::class.java)
+                    context.stopService(stopIntent)
+                }
+            } else {
+                // No service bound, try to stop the service directly
+                Log.d(TAG, "No service bound, using stopService")
+                val stopIntent = Intent(context, OpenVPNService::class.java)
+                context.stopService(stopIntent)
+            }
+
+            // Clear our local reference
             currentProfile = null
 
             true
         } catch (e: Exception) {
             Log.e(TAG, "Failed to disconnect", e)
+            false
+        }
+    }
+
+    /**
+     * Forcefully disconnect VPN - used when normal disconnect doesn't work
+     */
+    fun forceDisconnect(): Boolean {
+        return try {
+            Log.w(TAG, "Attempting forceful VPN disconnect")
+
+            // Mark the profile as disconnected
+            ProfileManager.setConntectedVpnProfileDisconnected(context)
+
+            // Unschedule the keepVPNAlive job to prevent automatic reconnection
+            keepVPNAlive.unscheduleKeepVPNAliveJobService(context)
+
+            // Try to stop via AIDL first
+            try {
+                vpnService?.stopVPN(false)
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to call stopVPN via AIDL", e)
+            }
+
+            // Also stop the service entirely
+            val stopIntent = Intent(context, OpenVPNService::class.java)
+            context.stopService(stopIntent)
+
+            // Update our state
+            _connectionState.value = ConnectionState.DISCONNECTED
+            currentProfile = null
+
+            // Clear IP info
+            _localIp.value = null
+            _remoteIp.value = null
+            _remotePort.value = null
+            _bytesIn.value = 0L
+            _bytesOut.value = 0L
+
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to forcefully disconnect", e)
             false
         }
     }

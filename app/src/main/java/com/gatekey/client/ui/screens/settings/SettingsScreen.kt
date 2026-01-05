@@ -1,5 +1,7 @@
 package com.gatekey.client.ui.screens.settings
 
+import android.content.Intent
+import android.widget.Toast
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -10,6 +12,7 @@ import androidx.compose.material3.Divider
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -23,11 +26,14 @@ fun SettingsScreen(
     authViewModel: AuthViewModel = hiltViewModel(),
     settingsViewModel: SettingsViewModel = hiltViewModel()
 ) {
+    val context = LocalContext.current
     val currentUser by authViewModel.currentUser.collectAsState()
     val settings by settingsViewModel.settings.collectAsState()
+    val logFileSize by settingsViewModel.logFileSize.collectAsState()
 
     var showLogoutDialog by remember { mutableStateOf(false) }
     var showLogLevelDialog by remember { mutableStateOf(false) }
+    var showClearLogsDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -103,6 +109,27 @@ fun SettingsScreen(
                     title = "Log level",
                     subtitle = settings.logLevel.name,
                     onClick = { showLogLevelDialog = true }
+                )
+
+                SettingsClickableItem(
+                    icon = Icons.Default.Share,
+                    title = "Export logs",
+                    subtitle = "Share log file ($logFileSize)",
+                    onClick = {
+                        val intent = settingsViewModel.getLogShareIntent()
+                        if (intent != null) {
+                            context.startActivity(Intent.createChooser(intent, "Share GateKey Logs"))
+                        } else {
+                            Toast.makeText(context, "No logs to export", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                )
+
+                SettingsClickableItem(
+                    icon = Icons.Default.Delete,
+                    title = "Clear logs",
+                    subtitle = "Delete all log data",
+                    onClick = { showClearLogsDialog = true }
                 )
             }
 
@@ -199,6 +226,32 @@ fun SettingsScreen(
             },
             confirmButton = {
                 TextButton(onClick = { showLogLevelDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    // Clear logs confirmation dialog
+    if (showClearLogsDialog) {
+        AlertDialog(
+            onDismissRequest = { showClearLogsDialog = false },
+            icon = { Icon(Icons.Default.Delete, contentDescription = null) },
+            title = { Text("Clear Logs") },
+            text = { Text("Are you sure you want to delete all log data? This cannot be undone.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showClearLogsDialog = false
+                        settingsViewModel.clearLogs()
+                        Toast.makeText(context, "Logs cleared", Toast.LENGTH_SHORT).show()
+                    }
+                ) {
+                    Text("Clear")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showClearLogsDialog = false }) {
                     Text("Cancel")
                 }
             }

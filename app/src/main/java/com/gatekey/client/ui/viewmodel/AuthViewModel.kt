@@ -36,29 +36,36 @@ class AuthViewModel @Inject constructor(
     val ssoLoginUrl: StateFlow<String?> = _ssoLoginUrl.asStateFlow()
 
     init {
-        // Set up token callback for successful SSO
-        OAuthCallbackHandler.setTokenCallback { token, email, name, expiresIn ->
-            viewModelScope.launch {
-                handleTokenCallback(token, email, name, expiresIn)
+        android.util.Log.d("AuthViewModel", "init block - setting up OAuth callbacks (this=$this)")
+        // Use setCallbacks with owner tracking to prevent race conditions
+        // when old ViewModels are cleared after new ones are created
+        OAuthCallbackHandler.setCallbacks(
+            owner = this,
+            onToken = { token, email, name, expiresIn ->
+                android.util.Log.d("AuthViewModel", "Token callback lambda invoked - launching coroutine")
+                viewModelScope.launch {
+                    handleTokenCallback(token, email, name, expiresIn)
+                }
+            },
+            onError = { error ->
+                viewModelScope.launch {
+                    handleErrorCallback(error)
+                }
+            },
+            onCancel = {
+                viewModelScope.launch {
+                    handleSsoCancelled()
+                }
             }
-        }
-        // Set up error callback for SSO failures
-        OAuthCallbackHandler.setErrorCallback { error ->
-            viewModelScope.launch {
-                handleErrorCallback(error)
-            }
-        }
-        // Set up cancel callback for when user returns from browser without completing SSO
-        OAuthCallbackHandler.setCancelCallback {
-            viewModelScope.launch {
-                handleSsoCancelled()
-            }
-        }
+        )
     }
 
     override fun onCleared() {
+        android.util.Log.d("AuthViewModel", "onCleared called - clearing callbacks (this=$this)")
         super.onCleared()
-        OAuthCallbackHandler.clearCallbacks()
+        // Only clear callbacks if this ViewModel is the current owner
+        // This prevents old ViewModels from clearing callbacks set by newer ones
+        OAuthCallbackHandler.clearCallbacksIfOwner(this)
     }
 
     private fun handleSsoCancelled() {
@@ -227,13 +234,17 @@ class AuthViewModel @Inject constructor(
     }
 
     private suspend fun handleTokenCallback(token: String, email: String?, name: String?, expiresIn: String?) {
-        android.util.Log.d("AuthViewModel", "Handling token callback - email: $email")
+        android.util.Log.d("AuthViewModel", "handleTokenCallback STARTING - email: $email, token: ${token.take(10)}...")
         _ssoLoginUrl.value = null // Clear the login URL on success
         val result = authRepository.handleDirectToken(token, email, name, expiresIn)
+        android.util.Log.d("AuthViewModel", "handleTokenCallback result: $result, authState now: ${authRepository.authState.value}")
         _isLoading.value = false
 
         if (result is Result.Error) {
+            android.util.Log.e("AuthViewModel", "handleTokenCallback ERROR: ${result.message}")
             _error.value = result.message
+        } else {
+            android.util.Log.d("AuthViewModel", "handleTokenCallback SUCCESS - should navigate to Home")
         }
     }
 

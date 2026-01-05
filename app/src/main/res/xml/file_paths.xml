@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- Log files in internal storage -->
+    <files-path
+        name="logs"
+        path="." />
+</paths>
