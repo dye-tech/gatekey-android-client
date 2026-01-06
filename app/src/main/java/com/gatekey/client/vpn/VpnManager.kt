@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -247,8 +248,11 @@ class VpnManager @Inject constructor(
 
         val wgConfig = (downloadResult as Result.Success).data
 
-        // Start VPN via WireGuard library
-        val started = wireGuardServiceManager.startVpn(wgConfig)
+        // Start VPN via WireGuard library on IO thread to avoid blocking main thread
+        // The VPN service needs main thread to process lifecycle callbacks
+        val started = withContext(Dispatchers.IO) {
+            wireGuardServiceManager.startVpn(wgConfig)
+        }
         if (!started) {
             _vpnState.value = VpnState.Error("Failed to start WireGuard connection")
             _activeConnections.value = emptyMap()
