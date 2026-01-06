@@ -1,7 +1,9 @@
 package com.gatekey.client
 
+import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -14,11 +16,16 @@ import androidx.compose.ui.Modifier
 import com.gatekey.client.data.repository.SettingsRepository
 import com.gatekey.client.ui.GatekeyApp
 import com.gatekey.client.ui.theme.GatekeyTheme
+import com.gatekey.client.ui.viewmodel.ConnectionViewModel
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+
+    companion object {
+        private const val TAG = "MainActivity"
+    }
 
     @Inject
     lateinit var settingsRepository: SettingsRepository
@@ -77,6 +84,18 @@ class MainActivity : ComponentActivity() {
         if (SsoStateManager.isWaitingForSso) {
             ssoInProgress = true
             SsoStateManager.isWaitingForSso = false
+        }
+    }
+
+    @Deprecated("Deprecated in Java")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        Log.d(TAG, "onActivityResult - requestCode: $requestCode, resultCode: $resultCode")
+
+        if (requestCode == ConnectionViewModel.VPN_PERMISSION_REQUEST_CODE) {
+            val granted = resultCode == Activity.RESULT_OK
+            Log.d(TAG, "VPN permission result - granted: $granted")
+            VpnPermissionHandler.handlePermissionResult(granted, this)
         }
     }
 
@@ -203,4 +222,28 @@ object OAuthCallbackHandler {
 object SsoStateManager {
     @Volatile
     var isWaitingForSso: Boolean = false
+}
+
+/**
+ * Callback handler for VPN permission flow
+ * Bridges the gap between Activity's onActivityResult and ViewModel's permission handling
+ */
+object VpnPermissionHandler {
+    private const val TAG = "VpnPermissionHandler"
+    private var permissionCallback: ((granted: Boolean, activity: Activity) -> Unit)? = null
+
+    fun setCallback(callback: (granted: Boolean, activity: Activity) -> Unit) {
+        android.util.Log.d(TAG, "setCallback - callback registered")
+        permissionCallback = callback
+    }
+
+    fun clearCallback() {
+        android.util.Log.d(TAG, "clearCallback - callback cleared")
+        permissionCallback = null
+    }
+
+    fun handlePermissionResult(granted: Boolean, activity: Activity) {
+        android.util.Log.d(TAG, "handlePermissionResult - granted: $granted, callback is ${if (permissionCallback != null) "SET" else "NULL"}")
+        permissionCallback?.invoke(granted, activity)
+    }
 }
