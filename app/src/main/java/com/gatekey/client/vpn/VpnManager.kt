@@ -338,8 +338,11 @@ class VpnManager @Inject constructor(
         // WireGuard mesh config is returned directly in the response
         val wgConfig = generatedMeshConfig.config
 
-        // Start VPN via WireGuard library
-        val started = wireGuardServiceManager.startVpn(wgConfig)
+        // Start VPN via WireGuard library on IO thread to avoid blocking main thread
+        // The VPN service needs main thread to process lifecycle callbacks
+        val started = withContext(Dispatchers.IO) {
+            wireGuardServiceManager.startVpn(wgConfig)
+        }
         if (!started) {
             _vpnState.value = VpnState.Error("Failed to start WireGuard connection")
             _activeConnections.value = emptyMap()
