@@ -305,6 +305,7 @@ class WireGuardServiceManager @Inject constructor(
             // Parse the WireGuard config (only on first attempt to avoid repeated parsing)
             val wgConfig = if (attempt == 1) {
                 Log.d(TAG, "Parsing WireGuard config...")
+                Log.d(TAG, "Raw config content (${config.length} chars):\n$config")
                 try {
                     Config.parse(BufferedReader(StringReader(config))).also { cfg ->
                         Log.d(TAG, "Config parsed successfully")
