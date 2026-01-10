@@ -28,6 +28,7 @@ import com.gatekey.client.ui.theme.GatekeyGreen
 import com.gatekey.client.ui.theme.GatekeyRed
 import com.gatekey.client.ui.theme.GatekeyYellow
 import com.gatekey.client.ui.viewmodel.ConnectionViewModel
+import com.gatekey.client.util.IpUtils
 import com.gatekey.client.ui.viewmodel.TrafficDataPoint
 import com.gatekey.client.vpn.VpnManager
 

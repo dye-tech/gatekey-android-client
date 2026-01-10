@@ -1,11 +1,32 @@
 # GateKey Android Client - Development Notes
 
+## Java Requirements
+
+This project requires **Java 21**. The `gradle.properties` file is configured to use `/usr/lib/jvm/java-21-openjdk` automatically.
+
+If the build fails with Java version errors, ensure Java 21 is installed:
+```bash
+# Fedora/RHEL
+sudo dnf install java-21-openjdk-devel
+
+# Ubuntu/Debian
+sudo apt install openjdk-21-jdk
+
+# Verify installation
+/usr/lib/jvm/java-21-openjdk/bin/java -version
+```
+
 ## Build Commands
 
-Build release APK (requires Java 21):
+Build release APK:
 ```bash
 cd /home/jesse/Desktop/gatekey-android-client
-JAVA_HOME=/usr/lib/jvm/java-21 ./gradlew clean assembleRelease
+./gradlew clean assembleRelease
+```
+
+Build debug APK (faster, for testing):
+```bash
+./gradlew assembleDebug
 ```
 
 APK output location: `app/build/outputs/apk/release/app-release.apk`
