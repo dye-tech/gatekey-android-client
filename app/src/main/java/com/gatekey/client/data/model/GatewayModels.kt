@@ -34,8 +34,11 @@ data class Gateway(
     @SerializedName("name") val name: String,
     @SerializedName("hostname") val hostname: String,
     @SerializedName("publicIp") val publicIp: String? = null,
+    @SerializedName("publicIpV6") val publicIpV6: String? = null,
     @SerializedName("vpnPort") val vpnPort: Int? = null,
     @SerializedName("vpnProtocol") val vpnProtocol: String? = null,
+    @SerializedName("vpnSubnet") val vpnSubnet: String? = null,
+    @SerializedName("vpnSubnetV6") val vpnSubnetV6: String? = null,
     @SerializedName("gatewayType") val gatewayType: String? = null,
     @SerializedName("isActive") val isActive: Boolean = true,
     @SerializedName("lastHeartbeat") val lastHeartbeat: String? = null,
@@ -43,6 +46,16 @@ data class Gateway(
     @SerializedName("location") val location: String? = null
 ) {
     fun getProtocol(): VpnProtocol = VpnProtocol.fromString(gatewayType ?: vpnProtocol)
+
+    /**
+     * Returns the best available public IP (prefers IPv4, falls back to IPv6)
+     */
+    fun getBestPublicIp(): String? = publicIp ?: publicIpV6
+
+    /**
+     * Returns true if this gateway has IPv6 support
+     */
+    fun hasIPv6(): Boolean = !publicIpV6.isNullOrEmpty() || !vpnSubnetV6.isNullOrEmpty()
 }
 
 data class GatewaysResponse(
@@ -56,15 +69,29 @@ data class MeshHub(
     @SerializedName("id") val id: String,
     @SerializedName("name") val name: String? = null,
     @SerializedName("publicEndpoint") val publicEndpoint: String? = null,
+    @SerializedName("publicEndpointV6") val publicEndpointV6: String? = null,
     @SerializedName("vpnPort") val vpnPort: Int? = null,
     @SerializedName("vpnProtocol") val vpnProtocol: String? = null,
+    @SerializedName("vpnSubnet") val vpnSubnet: String? = null,
+    @SerializedName("vpnSubnetV6") val vpnSubnetV6: String? = null,
     @SerializedName("hubType") val hubType: String? = null,
     @SerializedName("status") val status: String? = null,
     @SerializedName("lastHeartbeat") val lastHeartbeat: String? = null,
     @SerializedName("description") val description: String? = null,
-    @SerializedName("networks") val networks: List<String>? = null
+    @SerializedName("networks") val networks: List<String>? = null,
+    @SerializedName("networksV6") val networksV6: List<String>? = null
 ) {
     fun getProtocol(): VpnProtocol = VpnProtocol.fromString(hubType ?: vpnProtocol)
+
+    /**
+     * Returns the best available endpoint (prefers IPv4, falls back to IPv6)
+     */
+    fun getEndpoint(): String? = publicEndpoint ?: publicEndpointV6
+
+    /**
+     * Returns true if this hub has IPv6 support
+     */
+    fun hasIPv6(): Boolean = !publicEndpointV6.isNullOrEmpty() || !vpnSubnetV6.isNullOrEmpty()
 }
 
 data class MeshHubsResponse(

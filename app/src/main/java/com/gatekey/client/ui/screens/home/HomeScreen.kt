@@ -25,6 +25,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.gatekey.client.data.model.Gateway
 import com.gatekey.client.data.model.MeshHub
 import com.gatekey.client.ui.theme.GatekeyGreen
+import com.gatekey.client.util.IpUtils
 import com.gatekey.client.ui.theme.GatekeyRed
 import com.gatekey.client.ui.theme.GatekeyYellow
 import com.gatekey.client.ui.viewmodel.AuthViewModel
@@ -492,11 +493,7 @@ fun ConnectionStatusCard(
                             )
                         }
                         Text(
-                            text = if (remoteIp != null && remotePort != null) {
-                                "$remoteIp:$remotePort"
-                            } else {
-                                remoteIp ?: "—"
-                            },
+                            text = IpUtils.formatEndpoint(remoteIp, remotePort),
                             style = MaterialTheme.typography.bodyMedium,
                             fontWeight = FontWeight.Medium
                         )
