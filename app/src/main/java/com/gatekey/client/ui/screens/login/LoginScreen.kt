@@ -171,24 +171,8 @@ fun LoginScreen(
             // Content based on selected method
             when (selectedMethod) {
                 LoginMethod.SSO -> {
-                    // SSO Login
-                    if (providers.isNotEmpty()) {
-                        Text(
-                            text = "Available providers:",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        providers.filter { it.type.lowercase() in listOf("oidc", "saml") }
-                            .forEach { provider ->
-                                Text(
-                                    text = "• ${provider.displayName ?: provider.name} (${provider.type.uppercase()})",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        Spacer(modifier = Modifier.height(16.dp))
-                    }
+                    // SSO Login - show individual provider buttons
+                    val ssoProviders = providers.filter { it.type.lowercase() in listOf("oidc", "saml") }
 
                     // Show "Open Login Page" button when SSO URL is ready
                     if (ssoLoginUrl != null) {
@@ -233,7 +217,38 @@ fun LoginScreen(
                                 }
                             }
                         }
+                    } else if (ssoProviders.isNotEmpty()) {
+                        // Show individual buttons for each SSO provider
+                        Text(
+                            text = "Select a login provider:",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        ssoProviders.forEach { provider ->
+                            val providerLabel = provider.displayName ?: provider.name
+                            val typeLabel = provider.type.uppercase()
+
+                            Button(
+                                onClick = { viewModel.initiateLoginWithProvider(provider) },
+                                modifier = Modifier.fillMaxWidth(),
+                                enabled = !isLoading && serverUrl.isNotBlank()
+                            ) {
+                                if (isLoading && authState is AuthRepository.AuthState.LoggingIn) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(20.dp),
+                                        color = MaterialTheme.colorScheme.onPrimary,
+                                        strokeWidth = 2.dp
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                }
+                                Text("$providerLabel ($typeLabel)")
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
+                        }
                     } else {
+                        // Fallback: generic SSO button when no providers loaded yet
                         Button(
                             onClick = { viewModel.initiateLogin() },
                             modifier = Modifier.fillMaxWidth(),

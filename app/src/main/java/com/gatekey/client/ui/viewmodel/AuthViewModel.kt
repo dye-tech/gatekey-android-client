@@ -3,6 +3,7 @@ package com.gatekey.client.ui.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.gatekey.client.OAuthCallbackHandler
+import com.gatekey.client.data.model.AuthProvider
 import com.gatekey.client.data.model.UserSession
 import com.gatekey.client.data.repository.AuthRepository
 import com.gatekey.client.data.repository.Result
@@ -117,6 +118,10 @@ class AuthViewModel @Inject constructor(
     }
 
     fun initiateLogin() {
+        initiateLoginWithProvider(null)
+    }
+
+    fun initiateLoginWithProvider(provider: AuthProvider?) {
         viewModelScope.launch {
             _isLoading.value = true
             _error.value = null
@@ -135,7 +140,7 @@ class AuthViewModel @Inject constructor(
                 "https://$url"
             }
 
-            when (val result = authRepository.initiateLogin(serverUrl)) {
+            when (val result = authRepository.initiateLogin(serverUrl, provider)) {
                 is Result.Success -> {
                     // Store the login URL so user can click to open
                     _ssoLoginUrl.value = result.data

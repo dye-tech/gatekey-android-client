@@ -103,7 +103,7 @@ class AuthRepository @Inject constructor(
         return fetchProviders()
     }
 
-    suspend fun initiateLogin(serverUrl: String): Result<String> {
+    suspend fun initiateLogin(serverUrl: String, provider: AuthProvider? = null): Result<String> {
         // Clear any existing token before re-login to avoid stale state
         if (_authState.value is AuthState.LoggedIn || tokenRepository.hasValidToken()) {
             Log.d(TAG, "Clearing existing session before SSO re-login")
@@ -122,9 +122,19 @@ class AuthRepository @Inject constructor(
 
         // Construct login URL with mobile callback - properly URL encode the callback
         val callbackUrl = URLEncoder.encode("gatekey://callback", "UTF-8")
-        val loginUrl = "$serverUrl/api/v1/auth/cli/login?callback=$callbackUrl&cli_state=$pendingLoginState"
 
-        Log.d(TAG, "Initiating login with URL: $loginUrl, state: $pendingLoginState")
+        // If a specific provider is provided, use provider-specific endpoint
+        val loginUrl = if (provider != null) {
+            when (provider.type.lowercase()) {
+                "oidc" -> "$serverUrl/api/v1/auth/oidc/login?provider=${provider.name}&callback=$callbackUrl&cli_state=$pendingLoginState"
+                "saml" -> "$serverUrl/api/v1/auth/saml/login?provider=${provider.name}&callback=$callbackUrl&cli_state=$pendingLoginState"
+                else -> "$serverUrl/api/v1/auth/cli/login?callback=$callbackUrl&cli_state=$pendingLoginState"
+            }
+        } else {
+            "$serverUrl/api/v1/auth/cli/login?callback=$callbackUrl&cli_state=$pendingLoginState"
+        }
+
+        Log.d(TAG, "Initiating login with URL: $loginUrl, state: $pendingLoginState, provider: ${provider?.name}")
 
         return Result.Success(loginUrl)
     }
