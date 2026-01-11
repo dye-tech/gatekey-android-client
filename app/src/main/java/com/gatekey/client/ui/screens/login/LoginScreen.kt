@@ -32,6 +32,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.gatekey.client.R
 import com.gatekey.client.data.model.AuthProvider
 import com.gatekey.client.data.repository.AuthRepository
+import com.gatekey.client.ui.components.TrustPromptHandler
 import com.gatekey.client.ui.viewmodel.AuthViewModel
 
 enum class LoginMethod {
@@ -51,6 +52,7 @@ fun LoginScreen(
     val authState by viewModel.authState.collectAsState()
     val providers by viewModel.providers.collectAsState()
     val ssoLoginUrl by viewModel.ssoLoginUrl.collectAsState()
+    val trustPrompt by viewModel.trustPrompt.collectAsState()
 
     var selectedMethod by remember { mutableStateOf(LoginMethod.SSO) }
 
@@ -88,6 +90,15 @@ fun LoginScreen(
             viewModel.clearError()
         }
     }
+
+    // Show TOFU trust dialog when needed
+    TrustPromptHandler(
+        hostname = trustPrompt?.hostname,
+        pin = trustPrompt?.pin,
+        oldPin = trustPrompt?.oldPin,
+        onTrust = { viewModel.handleTrustDecision(true) },
+        onReject = { viewModel.handleTrustDecision(false) }
+    )
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) }

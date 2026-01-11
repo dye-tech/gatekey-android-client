@@ -46,7 +46,7 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-            <!-- OAuth callback -->
+            <!-- OAuth callback - custom scheme (fallback) -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
@@ -55,6 +55,33 @@
                     android:scheme="gatekey"
                     android:host="callback" />
             </intent-filter>
+
+            <!--
+            Android App Links - Secure verified deep links
+            To enable App Links for your domain:
+            1. Host /.well-known/assetlinks.json on your GateKey server with:
+               [{
+                 "relation": ["delegate_permission/common.handle_all_urls"],
+                 "target": {
+                   "namespace": "android_app",
+                   "package_name": "com.gatekey.client",
+                   "sha256_cert_fingerprints": ["YOUR_APP_SIGNING_CERT_SHA256"]
+                 }
+               }]
+            2. Get your signing cert fingerprint:
+               keytool -list -v -keystore your-keystore.jks | grep SHA256
+            3. Replace vpn.yourcompany.com with your actual GateKey server domain
+
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:scheme="https"
+                    android:host="vpn.yourcompany.com"
+                    android:pathPrefix="/oauth/callback" />
+            </intent-filter>
+            -->
         </activity>
 
         <!-- OpenVPN Service is provided by the openvpn library module -->

@@ -1,16 +1,24 @@
 package com.gatekey.client.data.repository
 
+import android.util.Log
 import com.gatekey.client.data.api.GatekeyApi
 import com.gatekey.client.data.model.*
+import com.gatekey.client.util.ConfigIntegrityVerifier
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import javax.inject.Inject
 import javax.inject.Singleton
 
+private const val TAG = "GatewayRepository"
+
 sealed class Result<out T> {
     data class Success<T>(val data: T) : Result<T>()
-    data class Error(val message: String, val code: Int? = null) : Result<Nothing>()
+    data class Error(
+        val message: String,
+        val code: Int? = null,
+        val exception: Throwable? = null
+    ) : Result<Nothing>()
     data object Loading : Result<Nothing>()
 }
 
@@ -101,8 +109,22 @@ class GatewayRepository @Inject constructor(
         return try {
             val response = api.downloadConfig(configId)
             if (response.isSuccessful) {
-                response.body()?.string()?.let { Result.Success(it) }
-                    ?: Result.Error("Empty config")
+                val config = response.body()?.string()
+                if (config.isNullOrBlank()) {
+                    return Result.Error("Empty config received")
+                }
+
+                // Verify config integrity and security
+                when (val verification = ConfigIntegrityVerifier.verifyOpenVpnConfig(config)) {
+                    is ConfigIntegrityVerifier.VerificationResult.Valid -> {
+                        Log.d(TAG, "OpenVPN config verified successfully")
+                        Result.Success(config)
+                    }
+                    is ConfigIntegrityVerifier.VerificationResult.Invalid -> {
+                        Log.e(TAG, "OpenVPN config verification failed: ${verification.reason}")
+                        Result.Error("Config security verification failed: ${verification.reason}")
+                    }
+                }
             } else {
                 Result.Error(
                     response.errorBody()?.string() ?: "Failed to download config",
@@ -137,8 +159,22 @@ class GatewayRepository @Inject constructor(
         return try {
             val response = api.downloadWireGuardConfig(configId)
             if (response.isSuccessful) {
-                response.body()?.string()?.let { Result.Success(it) }
-                    ?: Result.Error("Empty config")
+                val config = response.body()?.string()
+                if (config.isNullOrBlank()) {
+                    return Result.Error("Empty config received")
+                }
+
+                // Verify config integrity and security
+                when (val verification = ConfigIntegrityVerifier.verifyWireGuardConfig(config)) {
+                    is ConfigIntegrityVerifier.VerificationResult.Valid -> {
+                        Log.d(TAG, "WireGuard config verified successfully")
+                        Result.Success(config)
+                    }
+                    is ConfigIntegrityVerifier.VerificationResult.Invalid -> {
+                        Log.e(TAG, "WireGuard config verification failed: ${verification.reason}")
+                        Result.Error("Config security verification failed: ${verification.reason}")
+                    }
+                }
             } else {
                 Result.Error(
                     response.errorBody()?.string() ?: "Failed to download WireGuard config",
