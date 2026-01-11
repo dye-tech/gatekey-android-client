@@ -132,8 +132,9 @@ dependencies {
     // DataStore
     implementation("androidx.datastore:datastore-preferences:1.0.0")
 
-    // Security
-    implementation("androidx.security:security-crypto:1.1.0-alpha06")
+    // Security - using stable version for production reliability
+    // Note: 1.0.0 is the latest stable; 1.1.0-alpha has newer features but is pre-release
+    implementation("androidx.security:security-crypto:1.0.0")
 
     // Browser (Custom Tabs for OAuth)
     implementation("androidx.browser:browser:1.7.0")

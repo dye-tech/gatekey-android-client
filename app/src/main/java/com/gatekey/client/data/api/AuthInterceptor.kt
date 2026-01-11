@@ -61,12 +61,18 @@ class DynamicBaseUrlInterceptor @Inject constructor(
 }
 
 /**
- * OkHttp interceptor that adds authentication headers to requests
+ * OkHttp interceptor that adds authentication headers to requests.
+ * Includes token expiry validation to prevent sending expired tokens.
  */
 @Singleton
 class AuthInterceptor @Inject constructor(
     private val tokenRepository: TokenRepository
 ) : Interceptor {
+
+    companion object {
+        // Buffer time before expiry to trigger early rejection (5 minutes)
+        private const val EXPIRY_BUFFER_MS = 5 * 60 * 1000L
+    }
 
     override fun intercept(chain: Interceptor.Chain): Response {
         val originalRequest = chain.request()
@@ -76,8 +82,10 @@ class AuthInterceptor @Inject constructor(
         if (path.contains("/auth/providers") ||
             path.contains("/auth/cli/login") ||
             path.contains("/auth/oidc/login") ||
+            path.contains("/auth/saml/login") ||
             path.contains("/auth/local/login") ||
-            path.contains("/auth/api-key/validate")
+            path.contains("/auth/api-key/validate") ||
+            path.contains("/auth/cli/complete")
         ) {
             return chain.proceed(originalRequest)
         }
@@ -85,14 +93,28 @@ class AuthInterceptor @Inject constructor(
         // Get token from repository
         val token = runBlocking { tokenRepository.getToken() }
 
-        return if (token != null && !tokenRepository.isTokenExpired()) {
+        // Check if token exists and is not expired (with buffer for clock skew)
+        if (token != null) {
+            if (tokenRepository.isTokenExpired()) {
+                // Token is expired - clear it and proceed without auth
+                // The 401 handler will trigger re-authentication
+                runBlocking { tokenRepository.clearToken() }
+                return chain.proceed(originalRequest)
+            }
+
+            // Check if token is expiring soon - log warning but still use it
+            if (tokenRepository.isTokenExpiringSoon(EXPIRY_BUFFER_MS)) {
+                android.util.Log.w("AuthInterceptor", "Token expiring soon, consider refreshing")
+            }
+
             val authenticatedRequest = originalRequest.newBuilder()
                 .header("Authorization", "Bearer $token")
+                .header("X-Mobile-Client", "android")
                 .build()
-            chain.proceed(authenticatedRequest)
-        } else {
-            chain.proceed(originalRequest)
+            return chain.proceed(authenticatedRequest)
         }
+
+        return chain.proceed(originalRequest)
     }
 }
 

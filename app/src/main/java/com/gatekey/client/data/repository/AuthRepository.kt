@@ -81,7 +81,7 @@ class AuthRepository @Inject constructor(
                 )
             }
         } catch (e: Exception) {
-            Result.Error(e.message ?: "Network error")
+            Result.Error(e.message ?: "Network error", exception = e)
         }
     }
 
@@ -231,25 +231,37 @@ class AuthRepository @Inject constructor(
         if (error != null) {
             Log.e(TAG, "OAuth error: $error")
             _authState.value = AuthState.Error(error)
+            pendingLoginState = null
             return Result.Error(error)
         }
 
-        // Use the state from callback, or fall back to pendingLoginState if state is null
-        // Some server implementations send the state as cli_state in the URL
-        val stateToUse = state ?: pendingLoginState
+        // SECURITY: Strict state validation to prevent CSRF attacks
+        // The state parameter MUST be present and match our pending state
+        if (state == null) {
+            val msg = "Security error: Missing OAuth state parameter"
+            Log.e(TAG, msg)
+            _authState.value = AuthState.Error(msg)
+            pendingLoginState = null
+            return Result.Error(msg)
+        }
 
-        if (stateToUse == null) {
-            val msg = "Missing OAuth state"
+        if (pendingLoginState == null) {
+            val msg = "Security error: No pending login state - possible replay attack"
             Log.e(TAG, msg)
             _authState.value = AuthState.Error(msg)
             return Result.Error(msg)
         }
 
-        // Verify state matches if both are available
-        if (state != null && pendingLoginState != null && state != pendingLoginState) {
-            Log.w(TAG, "State mismatch - received: $state, expected: $pendingLoginState")
-            // Continue anyway - the server-side state is the source of truth
+        // Verify state matches exactly - reject on mismatch
+        if (state != pendingLoginState) {
+            val msg = "Security error: OAuth state mismatch - possible CSRF attack"
+            Log.e(TAG, "State mismatch - received: $state, expected: $pendingLoginState")
+            _authState.value = AuthState.Error(msg)
+            pendingLoginState = null
+            return Result.Error(msg)
         }
+
+        val stateToUse = state
 
         // Complete the login with retry logic (server might need time to process)
         return try {
