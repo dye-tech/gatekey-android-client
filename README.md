@@ -21,7 +21,7 @@ Android client for connecting to Gatekey VPN gateways and mesh networks.
 
 ### Prerequisites
 
-- JDK 17 (required, JDK 25+ not supported by current Android Gradle Plugin)
+- JDK 21 (required, JDK 25+ not supported by current Android Gradle Plugin)
 - Android SDK with API 35
 - Android NDK 29.0.14206865 (for native OpenVPN3 builds)
 - CMake (installed via Android SDK Manager)
@@ -44,19 +44,19 @@ sudo apt install swig
 brew install swig
 ```
 
-### Set up JDK 17
+### Set up JDK 21
 
-The build requires JDK 17. Set the JAVA_HOME environment variable:
+The build requires JDK 21. Set the JAVA_HOME environment variable:
 
 ```bash
 # On Linux (Homebrew)
-export JAVA_HOME=/home/linuxbrew/.linuxbrew/opt/openjdk@17
+export JAVA_HOME=/home/linuxbrew/.linuxbrew/opt/openjdk@21
 
 # On macOS (Homebrew)
-export JAVA_HOME=/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home
+export JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home
 
 # On Ubuntu/Debian
-export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
+export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
 ```
 
 ### Build Steps
@@ -100,23 +100,23 @@ For rapid development and testing on a physical device:
 
 #### One-Command Build and Deploy
 ```bash
-# Set JDK 17 and build+install in one step
-JAVA_HOME=/path/to/jdk17 ./gradlew installDebug
+# Set JDK 21 and build+install in one step
+JAVA_HOME=/path/to/jdk21 ./gradlew installDebug
 ```
 
-#### Common JDK 17 Paths
+#### Common JDK 21 Paths
 ```bash
 # Linux (Homebrew)
-export JAVA_HOME=/home/linuxbrew/.linuxbrew/Cellar/openjdk@17/17.0.17/libexec
+export JAVA_HOME=/home/linuxbrew/.linuxbrew/Cellar/openjdk@21/21.0.6/libexec
 
 # macOS (Homebrew)
-export JAVA_HOME=/opt/homebrew/opt/openjdk@17/libexec
+export JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec
 
 # Ubuntu/Debian
-export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
+export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
 
 # Fedora/RHEL
-export JAVA_HOME=/usr/lib/jvm/java-17-openjdk
+export JAVA_HOME=/usr/lib/jvm/java-21-openjdk
 ```
 
 #### Reinstalling After Signature Change
@@ -169,24 +169,24 @@ adb connect <device-ip>:5555
 
 #### Debug APK (for testing)
 ```bash
-JAVA_HOME=/path/to/jdk17 ./gradlew assembleDebug
+JAVA_HOME=/path/to/jdk21 ./gradlew assembleDebug
 # Output: app/build/outputs/apk/debug/app-debug.apk
 ```
 
 #### Release APK (for distribution)
 ```bash
-JAVA_HOME=/path/to/jdk17 ./gradlew assembleRelease
+JAVA_HOME=/path/to/jdk21 ./gradlew assembleRelease
 # Output: app/build/outputs/apk/release/app-release.apk
 ```
 
 #### Build Both Variants
 ```bash
-JAVA_HOME=/path/to/jdk17 ./gradlew assemble
+JAVA_HOME=/path/to/jdk21 ./gradlew assemble
 ```
 
 #### Clean Build (if encountering issues)
 ```bash
-JAVA_HOME=/path/to/jdk17 ./gradlew clean assembleDebug
+JAVA_HOME=/path/to/jdk21 ./gradlew clean assembleDebug
 ```
 
 #### APK Size Optimization
@@ -421,11 +421,11 @@ The app uses the embedded OpenVPN3 library (from ics-openvpn) for VPN connection
 ## Troubleshooting
 
 ### Build Fails with JDK Version Error
-Ensure you're using JDK 17. The Android Gradle Plugin doesn't support JDK 25+.
+Ensure you're using JDK 21. The Android Gradle Plugin doesn't support JDK 25+.
 
 Set JAVA_HOME explicitly:
 ```bash
-JAVA_HOME=/path/to/jdk17 ./gradlew assembleDebug
+JAVA_HOME=/path/to/jdk21 ./gradlew assembleDebug
 ```
 
 ### INSTALL_FAILED_UPDATE_INCOMPATIBLE
