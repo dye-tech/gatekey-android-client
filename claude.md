@@ -36,19 +36,19 @@ app/src/main/java/com/gatekey/client/
 
 ### Prerequisites Check
 Before building, ensure:
-- JDK 17 (NOT JDK 25+)
+- JDK 21 (NOT JDK 25+)
 - Android NDK 29.0.14206865
 - SWIG installed (for OpenVPN3 bindings)
 
 ### Build Command
 ```bash
-export JAVA_HOME=/home/linuxbrew/.linuxbrew/opt/openjdk@17  # Or your JDK 17 path
+export JAVA_HOME=/home/linuxbrew/.linuxbrew/opt/openjdk@21  # Or your JDK 21 path
 ./gradlew assembleDebug
 ```
 
 ### Common Build Errors
 
-1. **"Java version not supported"**: Use JDK 17, not a newer version
+1. **"Java version not supported"**: Use JDK 21, not a newer version
 2. **"SWIG not found"**: Install SWIG (`dnf install swig` / `apt install swig`)
 3. **"NDK not found"**: Check `ndkVersion = "29.0.14206865"` in build.gradle.kts
 
@@ -225,4 +225,4 @@ const val DISCONNECT_VPN = "de.blinkt.openvpn.DISCONNECT_VPN"  // This one is pu
 - Run `./gradlew assembleDebug` to verify changes compile
 - The OpenVPN module has its own manifest that merges with the app
 - VPN permissions must be requested at runtime (Android system dialog)
-- Use JDK 17 for builds (set JAVA_HOME)
+- Use JDK 21 for builds (set JAVA_HOME)
