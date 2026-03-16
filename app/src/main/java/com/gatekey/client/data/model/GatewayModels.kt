@@ -182,3 +182,21 @@ data class UserConfig(
     @SerializedName("is_revoked") val isRevoked: Boolean = false,
     @SerializedName("downloaded_at") val downloadedAt: String? = null
 )
+
+/**
+ * DNS Configuration
+ */
+data class DnsConfigResponse(
+    @SerializedName("dns_servers") val dnsServers: List<String>? = null,
+    @SerializedName("search_domains") val searchDomains: List<String>? = null,
+    @SerializedName("records") val records: List<DnsRecord>? = null
+)
+
+data class DnsRecord(
+    @SerializedName("id") val id: String? = null,
+    @SerializedName("hostname") val hostname: String? = null,
+    @SerializedName("ip_address") val ipAddress: String? = null,
+    @SerializedName("description") val description: String? = null,
+    @SerializedName("record_type") val recordType: String? = null,
+    @SerializedName("is_wildcard") val isWildcard: Boolean? = false
+)

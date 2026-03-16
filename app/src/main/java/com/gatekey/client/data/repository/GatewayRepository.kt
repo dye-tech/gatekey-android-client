@@ -203,6 +203,29 @@ class GatewayRepository @Inject constructor(
         }
     }
 
+    // ============= DNS Methods =============
+
+    suspend fun getDnsConfig(): Result<DnsConfigResponse> {
+        return try {
+            val response = api.getDnsConfig()
+            if (response.isSuccessful) {
+                val body = response.body()
+                if (body != null) {
+                    Result.Success(body)
+                } else {
+                    Result.Success(DnsConfigResponse())
+                }
+            } else {
+                Result.Error(
+                    response.errorBody()?.string() ?: "Failed to fetch DNS config",
+                    response.code()
+                )
+            }
+        } catch (e: Exception) {
+            Result.Error(e.message ?: "Network error")
+        }
+    }
+
     fun updateConnectionState(id: String, connection: ActiveConnection) {
         _activeConnections.value = _activeConnections.value.toMutableMap().apply {
             put(id, connection)
