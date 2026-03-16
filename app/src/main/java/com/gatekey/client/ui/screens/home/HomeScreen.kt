@@ -22,6 +22,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.gatekey.client.data.model.DnsConfigResponse
 import com.gatekey.client.data.model.Gateway
 import com.gatekey.client.data.model.MeshHub
 import com.gatekey.client.ui.theme.GatekeyGreen
@@ -54,6 +55,7 @@ fun HomeScreen(
     val bytesOut by connectionViewModel.bytesOut.collectAsState()
     val trafficHistory by connectionViewModel.trafficHistory.collectAsState()
     val darkMode by connectionViewModel.darkMode.collectAsState(initial = false)
+    val dnsConfig by connectionViewModel.dnsConfig.collectAsState()
 
     val context = LocalContext.current
     val activity = context as? android.app.Activity
@@ -113,6 +115,7 @@ fun HomeScreen(
                     bytesIn = bytesIn,
                     bytesOut = bytesOut,
                     trafficHistory = trafficHistory,
+                    dnsConfig = dnsConfig,
                     onDisconnect = { connectionViewModel.disconnect() }
                 )
             }
@@ -365,6 +368,7 @@ fun ConnectionStatusCard(
     bytesIn: Long,
     bytesOut: Long,
     trafficHistory: List<TrafficDataPoint>,
+    dnsConfig: DnsConfigResponse? = null,
     onDisconnect: () -> Unit
 ) {
     val (statusColor, statusIcon, statusText) = when (vpnState) {
@@ -549,6 +553,79 @@ fun ConnectionStatusCard(
                             .fillMaxWidth()
                             .height(80.dp)
                     )
+                }
+
+                // DNS Configuration section
+                if (dnsConfig != null) {
+                    val hasDnsServers = !dnsConfig.dnsServers.isNullOrEmpty()
+                    val hasSearchDomains = !dnsConfig.searchDomains.isNullOrEmpty()
+                    val recordCount = dnsConfig.records?.size ?: 0
+
+                    if (hasDnsServers || hasSearchDomains || recordCount > 0) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Divider(
+                            color = MaterialTheme.colorScheme.outlineVariant
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Dns,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "DNS Configuration",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        if (hasDnsServers) {
+                            Text(
+                                text = "DNS Servers",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = dnsConfig.dnsServers!!.joinToString(", "),
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.Medium
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+                        }
+
+                        if (hasSearchDomains) {
+                            Text(
+                                text = "Search Domains",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = dnsConfig.searchDomains!!.joinToString(", "),
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.Medium
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+                        }
+
+                        if (recordCount > 0) {
+                            Text(
+                                text = "Static DNS Records",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = "$recordCount record${if (recordCount != 1) "s" else ""}",
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
                 }
             }
         }

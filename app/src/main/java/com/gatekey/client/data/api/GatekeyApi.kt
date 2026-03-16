@@ -101,4 +101,9 @@ interface GatekeyApi {
     suspend fun generateWireGuardMeshConfig(
         @Body request: GenerateMeshConfigRequest
     ): Response<GeneratedMeshConfig>
+
+    // ============= DNS Configuration =============
+
+    @GET("api/v1/dns/config")
+    suspend fun getDnsConfig(): Response<DnsConfigResponse>
 }

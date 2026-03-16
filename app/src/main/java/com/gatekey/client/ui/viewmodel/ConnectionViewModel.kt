@@ -6,6 +6,7 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.gatekey.client.VpnPermissionHandler
+import com.gatekey.client.data.model.DnsConfigResponse
 import com.gatekey.client.data.repository.GatewayRepository
 import com.gatekey.client.data.repository.Result
 import com.gatekey.client.data.repository.SettingsRepository
@@ -66,6 +67,10 @@ class ConnectionViewModel @Inject constructor(
     private val _trafficHistory = MutableStateFlow<List<TrafficDataPoint>>(emptyList())
     val trafficHistory: StateFlow<List<TrafficDataPoint>> = _trafficHistory.asStateFlow()
 
+    // DNS configuration
+    private val _dnsConfig = MutableStateFlow<DnsConfigResponse?>(null)
+    val dnsConfig: StateFlow<DnsConfigResponse?> = _dnsConfig.asStateFlow()
+
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
@@ -121,9 +126,10 @@ class ConnectionViewModel @Inject constructor(
             _isLoading.value = true
             _error.value = null
 
-            // Fetch gateways and mesh hubs in parallel
+            // Fetch gateways, mesh hubs, and DNS config
             val gatewaysResult = gatewayRepository.fetchGateways()
             val meshHubsResult = gatewayRepository.fetchMeshHubs()
+            val dnsResult = gatewayRepository.getDnsConfig()
 
             when {
                 gatewaysResult is Result.Error -> {
@@ -132,6 +138,11 @@ class ConnectionViewModel @Inject constructor(
                 meshHubsResult is Result.Error -> {
                     _error.value = meshHubsResult.message
                 }
+            }
+
+            // DNS config is optional - don't show error if it fails
+            if (dnsResult is Result.Success) {
+                _dnsConfig.value = dnsResult.data
             }
 
             _isLoading.value = false
